@@ -40,7 +40,7 @@ app.add_middleware(
 )
 async def root_health() -> HealthResponse:
     """Return health status at root level."""
-    ai_status = "operational" if settings.GEMINI_API_KEY else "unconfigured (missing GEMINI_API_KEY)"
+    ai_status = "configured (unverified)" if settings.GEMINI_API_KEY else "unconfigured (missing GEMINI_API_KEY)"
     return HealthResponse(
         status="healthy",
         project=settings.PROJECT_NAME,

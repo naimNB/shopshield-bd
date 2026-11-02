@@ -24,6 +24,8 @@ from backend.app.services.ai_extractor import (
     AIExtractorService,
     ConfigurationError,
     AIProviderError,
+    AIQuotaExhaustedError,
+    AITimeoutError,
     verify_evidence_in_text,
 )
 from backend.app.services.comparison_service import ComparisonService
@@ -272,7 +274,7 @@ def test_analyze_endpoint_short_input_validation(client: TestClient):
 
 
 def test_analyze_endpoint_provider_error_handling(client: TestClient):
-    """Verify that AIProviderError returns 502 Bad Gateway and never fake data."""
+    """Verify that AIProviderError returns 502 Bad Gateway and a user-safe message, never fake data."""
     mock_extractor = MagicMock()
     mock_extractor.extract_claims.side_effect = AIProviderError("Gemini quota exceeded or timeout.")
 
@@ -288,7 +290,63 @@ def test_analyze_endpoint_provider_error_handling(client: TestClient):
             },
         )
         assert response.status_code == 502
-        assert "quota exceeded" in response.json()["detail"]
+        assert "unavailable" in response.json()["detail"].lower()
+
+
+def test_analyze_endpoint_quota_exhausted_returns_429(client: TestClient):
+    """Verify that AIQuotaExhaustedError returns 429 Too Many Requests."""
+    with patch("backend.app.api.v1.routes.PurchasePromiseAnalyzer") as mock_analyzer_cls:
+        instance = mock_analyzer_cls.return_value
+        instance.analyze.side_effect = AIQuotaExhaustedError("Rate limit exceeded")
+
+        response = client.post(
+            "/api/v1/analyze",
+            json={
+                "advertisement_text": "Price 1200 Tk, Cash on delivery available.",
+                "seller_chat_text": "Price 1500 Tk, advance required.",
+            },
+        )
+        assert response.status_code == 429
+        assert "quota" in response.json()["detail"].lower() or "rate limit" in response.json()["detail"].lower()
+
+
+def test_analyze_endpoint_timeout_returns_504(client: TestClient):
+    """Verify that AITimeoutError returns 504 Gateway Timeout."""
+    with patch("backend.app.api.v1.routes.PurchasePromiseAnalyzer") as mock_analyzer_cls:
+        instance = mock_analyzer_cls.return_value
+        instance.analyze.side_effect = AITimeoutError("Request timed out after 30s")
+
+        response = client.post(
+            "/api/v1/analyze",
+            json={
+                "advertisement_text": "Price 1200 Tk, Cash on delivery available.",
+                "seller_chat_text": "Price 1500 Tk, advance required.",
+            },
+        )
+        assert response.status_code == 504
+        assert "timed out" in response.json()["detail"].lower()
+
+
+def test_analyze_endpoint_unexpected_error_safe_generic_response(client: TestClient):
+    """Verify unexpected errors return 500 without leaking private text or internal stack trace."""
+    with patch("backend.app.api.v1.routes.PurchasePromiseAnalyzer") as mock_analyzer_cls:
+        instance = mock_analyzer_cls.return_value
+        instance.analyze.side_effect = RuntimeError("secret_db_password_1234 failure in /var/internal/db.py")
+
+        response = client.post(
+            "/api/v1/analyze",
+            json={
+                "advertisement_text": "Price 1200 Tk, Cash on delivery available.",
+                "seller_chat_text": "Customer personal chat text that must not leak.",
+            },
+        )
+        assert response.status_code == 500
+        detail = response.json()["detail"]
+        assert "internal server error" in detail.lower()
+        # Ensure internal details and user text are never leaked in response
+        assert "secret_db_password" not in detail
+        assert "/var/internal" not in detail
+        assert "Customer personal chat" not in detail
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +360,7 @@ def test_full_analysis_workflow_with_contradictions():
         source_type="advertisement",
         product_name="Smart Watch Ultra",
         price=2200.0,
+        price_evidence="2200 Tk",
         cod_available=True,
         cod_evidence="Cash on delivery available nationwide",
         return_policy_available=True,
@@ -316,6 +375,7 @@ def test_full_analysis_workflow_with_contradictions():
         source_type="seller_chat",
         product_name="Smart Watch Ultra",
         price=2600.0,  # Contradiction: 2200 vs 2600
+        price_evidence="2600 taka",
         cod_available=False,  # Contradiction: True vs False
         cod_evidence="No COD outside Dhaka, full payment advance",
         advance_payment_required=True,
@@ -352,3 +412,109 @@ def test_full_analysis_workflow_with_contradictions():
     # Buyer questions generated in Bangla
     assert len(response.buyer_questions_bangla) > 0
     assert any("কুরিয়ার" in q or "ডেলিভারি" in q for q in response.buyer_questions_bangla)
+
+
+# ---------------------------------------------------------------------------
+# Regression Checks: Unsupported Evidence & Strict Validation
+# ---------------------------------------------------------------------------
+def test_verify_evidence_in_text_edge_cases():
+    """Verify that None, empty, or whitespace-only evidence always returns False."""
+    assert verify_evidence_in_text("", "Some genuine source text") is False
+    assert verify_evidence_in_text(None, "Some genuine source text") is False
+    assert verify_evidence_in_text("   ", "Some genuine source text") is False
+    assert verify_evidence_in_text("hello", "") is False
+    assert verify_evidence_in_text("hello", None) is False
+
+
+def test_unsupported_price_claim_does_not_trigger_contradiction():
+    """Verify that hallucinated/unsupported price is discarded and does NOT trigger contradiction."""
+    extractor = AIExtractorService(api_key="mock_key")
+    real_ad_text = "Exclusive panjabi for Eid. Best quality fabric."
+    
+    # Model hallucinated price quote not in text
+    extracted = ExtractedClaims(
+        source_type="advertisement",
+        price=1800.0,
+        price_evidence="Only 1800 Taka limited stock",  # NOT in real_ad_text
+    )
+    validated = extractor.validate_extracted_claims(extracted, real_ad_text)
+    assert validated.price is None
+    assert validated.price_evidence is None
+    assert len(validated.unsupported_claims) == 1
+
+    # In comparison against a chat price, it should yield INSUFFICIENT_INFORMATION, not CONTRADICTION
+    chat_claims = ExtractedClaims(
+        source_type="seller_chat",
+        price=2200.0,
+        price_evidence="dam 2200 taka",
+    )
+    comparer = ComparisonService()
+    results = comparer.compare(validated, chat_claims)
+    price_item = next(item for item in results if item.field == "price")
+    assert price_item.status == ContradictionStatus.INSUFFICIENT_INFORMATION
+
+
+def test_unsupported_cod_claim_does_not_trigger_contradiction():
+    """Verify that hallucinated COD claim is discarded and does not cause a false contradiction."""
+    extractor = AIExtractorService(api_key="mock_key")
+    real_chat_text = "Apni kon color nite chan? Red and black available."
+    
+    # Model hallucinated that COD is denied
+    extracted = ExtractedClaims(
+        source_type="seller_chat",
+        cod_available=False,
+        cod_evidence="No cash on delivery for anyone",  # NOT in real_chat_text
+    )
+    validated = extractor.validate_extracted_claims(extracted, real_chat_text)
+    assert validated.cod_available is None
+    assert validated.cod_evidence is None
+
+    # Ad promised COD with valid evidence
+    ad_claims = ExtractedClaims(
+        source_type="advertisement",
+        cod_available=True,
+        cod_evidence="Cash on delivery available nationwide",
+    )
+    comparer = ComparisonService()
+    results = comparer.compare(ad_claims, validated)
+    cod_item = next(item for item in results if item.field == "cod_availability")
+    assert cod_item.status == ContradictionStatus.INSUFFICIENT_INFORMATION
+
+
+def test_unsupported_advance_payment_does_not_trigger_warning():
+    """Verify that hallucinated advance payment claim does not trigger false safety warnings."""
+    extractor = AIExtractorService(api_key="mock_key")
+    real_chat_text = "Apnar address din, amra pathiye dibo."
+
+    # Model hallucinated advance payment
+    extracted = ExtractedClaims(
+        source_type="seller_chat",
+        advance_payment_required=True,
+        advance_payment_amount=1000.0,
+        advance_payment_evidence="1000 taka advance bkash koren",  # NOT in text
+    )
+    validated = extractor.validate_extracted_claims(extracted, real_chat_text)
+    assert validated.advance_payment_required is None
+    assert validated.advance_payment_amount is None
+
+    # Rules engine must not generate ADVANCE_FULL_PAYMENT or ADVANCE_DELIVERY_CHARGE warning
+    rules_engine = PaymentRulesEngine()
+    ad_claims = ExtractedClaims(source_type="advertisement", price=1000.0)
+    warnings, _, _ = rules_engine.evaluate(ad_claims, validated, [])
+    advance_warnings = [w for w in warnings if "ADVANCE" in w.type]
+    assert len(advance_warnings) == 0
+
+
+def test_numeric_and_boolean_comparisons_require_evidence():
+    """Verify that differing values without supporting evidence are labeled NEEDS_REVIEW, not CONTRADICTION."""
+    comparer = ComparisonService()
+    
+    # Prices differ, but neither side provided evidence
+    ad = ExtractedClaims(source_type="advertisement", price=1200.0, price_evidence=None)
+    chat = ExtractedClaims(source_type="seller_chat", price=1600.0, price_evidence=None)
+
+    results = comparer.compare(ad, chat)
+    price_item = next(item for item in results if item.field == "price")
+    assert price_item.status == ContradictionStatus.NEEDS_REVIEW
+    assert "lack a verified evidence quotation" in price_item.explanation.lower() or "review" in price_item.explanation.lower()
+

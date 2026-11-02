@@ -1,5 +1,6 @@
 """API v1 route definitions for ShopShield BD."""
 
+import logging
 from fastapi import APIRouter, HTTPException, status
 from backend.app.config import settings
 from backend.app.schemas.health import HealthResponse, ServiceStatus
@@ -8,9 +9,12 @@ from backend.app.services.analyzer import PurchasePromiseAnalyzer
 from backend.app.services.ai_extractor import (
     ConfigurationError,
     AIProviderError,
+    AIQuotaExhaustedError,
+    AITimeoutError,
     AIResponseValidationError,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -23,8 +27,11 @@ router = APIRouter()
     tags=["System"],
 )
 async def get_health() -> HealthResponse:
-    """Perform a system health check and return service availability."""
-    ai_status = "operational" if settings.GEMINI_API_KEY else "unconfigured (missing GEMINI_API_KEY)"
+    """Perform a system health check and return service availability.
+
+    Note: The presence of an API key represents configuration, not proof that the model is operational.
+    """
+    ai_status = "configured (unverified)" if settings.GEMINI_API_KEY else "unconfigured (missing GEMINI_API_KEY)"
     return HealthResponse(
         status="healthy",
         project=settings.PROJECT_NAME,
@@ -47,14 +54,17 @@ async def get_health() -> HealthResponse:
 )
 async def get_status():
     """Return platform metadata and current development phase."""
-    ai_ready = bool(settings.GEMINI_API_KEY)
+    ai_configured = bool(settings.GEMINI_API_KEY)
+    ai_status_label = "configured (unverified)" if ai_configured else "unconfigured (missing GEMINI_API_KEY)"
     return {
         "project": settings.PROJECT_NAME,
         "phase": "Task 02 — Purchase Promise Extraction & Contradiction Detection",
         "event": "YUNet AIgnite Buildathon 2026",
         "ai_engine": {
             "model": settings.GEMINI_MODEL,
-            "configured": ai_ready,
+            "configured": ai_configured,
+            "status": ai_status_label,
+            "timeout_seconds": settings.AI_REQUEST_TIMEOUT_SECONDS,
         },
         "features": {
             "purchase_promise_extraction": "implemented",
@@ -83,12 +93,15 @@ async def get_status():
 )
 async def analyze_promises(request: AnalyzeRequest) -> AnalyzeResponse:
     """Analyze purchase promises and detect contradictions between advertisement and conversation."""
-    if len(request.advertisement_text.strip()) < 5:
+    ad_clean = request.advertisement_text.strip()
+    chat_clean = request.seller_chat_text.strip()
+
+    if len(ad_clean) < 5:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Advertisement text is too short. Please provide at least 5 characters.",
         )
-    if len(request.seller_chat_text.strip()) < 5:
+    if len(chat_clean) < 5:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Seller chat text is too short. Please provide at least 5 characters.",
@@ -110,22 +123,39 @@ async def analyze_promises(request: AnalyzeRequest) -> AnalyzeResponse:
         result = analyzer.analyze(request)
         return result
     except ConfigurationError as e:
+        logger.warning("Configuration error: %s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(e),
+            detail="Gemini API key is not configured. Please set the GEMINI_API_KEY environment variable.",
         )
-    except AIProviderError as e:
+    except AIQuotaExhaustedError:
+        logger.warning("AI provider quota exhausted.")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Gemini API quota or rate limit exceeded. Please try again later.",
+        )
+    except AITimeoutError:
+        logger.warning("AI provider request timed out.")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="The AI analysis request timed out. Please try again with shorter text.",
+        )
+    except AIResponseValidationError:
+        logger.error("AI response schema validation failed.")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(e),
+            detail="The AI provider returned an unexpected response format. Please try again.",
         )
-    except AIResponseValidationError as e:
+    except AIProviderError:
+        logger.error("AI provider error occurred.")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(e),
+            detail="AI service provider is currently unavailable. Please try again later.",
         )
     except Exception as e:
+        # User-safe generic message without exposing internal stack traces, private conversation, or secrets
+        logger.exception("Unexpected internal error during promise analysis: %s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred during promise analysis: {str(e)}",
+            detail="An internal server error occurred while analyzing purchase promises. Technical details have been logged.",
         )

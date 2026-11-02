@@ -4,7 +4,10 @@ from backend.app.services.ai_extractor import (
     AIExtractorService,
     ConfigurationError,
     AIProviderError,
+    AIQuotaExhaustedError,
+    AITimeoutError,
     AIResponseValidationError,
+    verify_evidence_in_text,
 )
 from backend.app.services.comparison_service import ComparisonService
 from backend.app.services.rules_engine import PaymentRulesEngine
@@ -14,7 +17,10 @@ __all__ = [
     "AIExtractorService",
     "ConfigurationError",
     "AIProviderError",
+    "AIQuotaExhaustedError",
+    "AITimeoutError",
     "AIResponseValidationError",
+    "verify_evidence_in_text",
     "ComparisonService",
     "PaymentRulesEngine",
     "PurchasePromiseAnalyzer",

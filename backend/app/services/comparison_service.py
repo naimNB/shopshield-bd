@@ -1,8 +1,9 @@
 """Comparison Service for detecting contradictions and consistency between advertisement and seller chat.
 
 Deterministic comparison for prices, amounts, explicit yes/no flags, with constrained
-reasoning and NEEDS_REVIEW labels for ambiguous semantic claims.
-Never confuses missing information with contradiction.
+reasoning and NEEDS_REVIEW labels for ambiguous semantic claims or claims lacking verified evidence.
+Never confuses missing information with contradiction, and never triggers CONTRADICTION
+without verified supporting evidence from both sources.
 """
 
 from typing import List, Optional
@@ -49,9 +50,23 @@ class ComparisonService:
                 severity="info",
             )
 
-        # Deterministic numeric comparison
+        # Ensure supporting evidence is present before declaring a contradiction
         diff = abs(ad.price - chat.price)
         if diff > 1.0:
+            if not ad.price_evidence or not chat.price_evidence:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.price_evidence,
+                    chat_evidence=chat.price_evidence,
+                    explanation=(
+                        f"Price discrepancy detected (৳{ad.price:,.2f} vs ৳{chat.price:,.2f}), but one or both sources "
+                        "lack a verified evidence quotation. Requires manual review."
+                    ),
+                    severity="medium",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -92,6 +107,17 @@ class ComparisonService:
             )
 
         if ad.cod_available is True and chat.cod_available is False:
+            if not ad.cod_evidence or not chat.cod_evidence:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.cod_evidence,
+                    chat_evidence=chat.cod_evidence,
+                    explanation="COD conflict indicated, but supporting evidence quotation is missing from one source. Requires review.",
+                    severity="medium",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -137,6 +163,17 @@ class ComparisonService:
 
         # Check explicit zero-advance claim in ad vs advance required in chat
         if ad.advance_payment_required is False and chat.advance_payment_required is True:
+            if not chat.advance_payment_evidence:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.advance_payment_evidence,
+                    chat_evidence=chat.advance_payment_evidence,
+                    explanation="Advance payment discrepancy suggested, but chat lacks verified supporting evidence.",
+                    severity="medium",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -154,6 +191,17 @@ class ComparisonService:
         if ad.advance_payment_amount is not None and chat.advance_payment_amount is not None:
             diff = abs(ad.advance_payment_amount - chat.advance_payment_amount)
             if diff > 10.0:
+                if not ad.advance_payment_evidence or not chat.advance_payment_evidence:
+                    return ComparisonItem(
+                        field=field,
+                        field_label=label,
+                        status=ContradictionStatus.NEEDS_REVIEW,
+                        ad_evidence=ad.advance_payment_evidence,
+                        chat_evidence=chat.advance_payment_evidence,
+                        explanation="Advance amounts differ, but supporting evidence quotation is missing. Needs manual verification.",
+                        severity="medium",
+                    )
+
                 return ComparisonItem(
                     field=field,
                     field_label=label,
@@ -229,6 +277,17 @@ class ComparisonService:
             )
 
         if ad.return_policy_available is True and chat.return_policy_available is False:
+            if not ad.return_policy_evidence or not chat.return_policy_evidence:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.return_policy_evidence,
+                    chat_evidence=chat.return_policy_evidence,
+                    explanation="Return terms conflict suggested, but supporting quotation is missing. Needs manual verification.",
+                    severity="medium",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -299,6 +358,17 @@ class ComparisonService:
             )
 
         if ad.warranty_available is True and chat.warranty_available is False:
+            if not ad.warranty_evidence or not chat.warranty_evidence:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.warranty_evidence,
+                    chat_evidence=chat.warranty_evidence,
+                    explanation="Warranty contradiction indicated, but supporting quote is missing from one source.",
+                    severity="medium",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -351,6 +421,17 @@ class ComparisonService:
         if ("free delivery" in ad_text or "delivery free" in ad_text or "ফ্রি ডেলিভারি" in ad_text) and (
             "delivery charge" in chat_text or "ডেলিভারি চার্জ" in chat_text or "charge" in chat_text
         ):
+            if not ad.delivery_evidence or not chat.delivery_evidence:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.delivery_evidence,
+                    chat_evidence=chat.delivery_evidence,
+                    explanation="Delivery fee conflict suspected, but verified supporting quote is missing.",
+                    severity="low",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -365,6 +446,17 @@ class ComparisonService:
         if ("open" in ad_text or "check" in ad_text or "খুলে" in ad_text) and (
             "cannot open" in chat_text or "no check" in chat_text or "খুলতে পারবেন না" in chat_text
         ):
+            if not ad.delivery_evidence or not chat.delivery_evidence:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.delivery_evidence,
+                    chat_evidence=chat.delivery_evidence,
+                    explanation="Inspection conflict suspected, but verified supporting quote is missing.",
+                    severity="medium",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,

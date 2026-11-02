@@ -12,7 +12,12 @@ def test_root_health_endpoint(client: TestClient):
     assert data["project"] == "ShopShield BD"
     assert data["version"] == "0.1.0"
     assert data["services"]["api"] == "operational"
-    assert data["services"]["ai_engine"] in ["standby", "operational", "unconfigured (missing GEMINI_API_KEY)"]
+    assert data["services"]["ai_engine"] in [
+        "standby",
+        "operational",
+        "unconfigured (missing GEMINI_API_KEY)",
+        "configured (unverified)",
+    ]
     assert "timestamp" in data
     assert data["docs_url"] == "/docs"
 

@@ -2,7 +2,8 @@
 
 Extracts verifiable purchase commitments from advertisements and chat conversations
 supporting Bangla, English, and Banglish. Validates that evidence quotations actually
-occur in the source text.
+occur in the source text. Unsupported or fabricated claims are strictly marked and
+removed from downstream comparisons to avoid false contradictions.
 """
 
 import json
@@ -12,6 +13,7 @@ from typing import Optional, Any
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
+import httpx
 
 from backend.app.config import settings
 from backend.app.schemas.claims import ExtractedClaims, SingleClaim
@@ -25,28 +27,40 @@ class ConfigurationError(Exception):
 
 
 class AIProviderError(Exception):
-    """Raised when the AI provider fails, times out, or returns an error."""
+    """Base exception for AI provider communication failures."""
     pass
 
 
-class AIResponseValidationError(Exception):
+class AIQuotaExhaustedError(AIProviderError):
+    """Raised when the Gemini API rate limit or quota is exhausted."""
+    pass
+
+
+class AITimeoutError(AIProviderError):
+    """Raised when the request to Gemini API times out."""
+    pass
+
+
+class AIResponseValidationError(AIProviderError):
     """Raised when the AI response does not match the expected schema."""
     pass
 
 
 def normalize_whitespace(text: str) -> str:
-    """Normalize string for robust substring matching across whitespace variations."""
+    """Normalize string for robust substring matching across whitespace and quote variations."""
     if not text:
         return ""
-    # Strip common punctuation that might vary slightly, lowercase, collapse spaces
+    # Strip common quote variations and collapse whitespace
     cleaned = re.sub(r"[\"'\u201c\u201d\u2018\u2019]", "", text.lower())
     return " ".join(cleaned.split())
 
 
 def verify_evidence_in_text(evidence: Optional[str], source_text: str) -> bool:
-    """Verify that an extracted evidence quote actually occurs in the source text."""
+    """Verify that an extracted evidence quote is non-empty and actually occurs in the source text."""
     if not evidence or not evidence.strip():
-        return True
+        return False
+    if not source_text or not source_text.strip():
+        return False
     norm_evidence = normalize_whitespace(evidence)
     norm_source = normalize_whitespace(source_text)
     return norm_evidence in norm_source
@@ -59,10 +73,10 @@ The text may be in English, Bengali (বাংলা), or Banglish (Bengali writ
 CRITICAL RULES:
 1. Extract ONLY what is EXPLICITLY stated in the text.
 2. NEVER invent, assume, or hallucinate missing information. If a field is not stated, leave it null/empty.
-3. Every extracted claim MUST include an exact quote from the input text in the corresponding evidence field.
+3. Every extracted claim MUST include an exact verbatim quote from the input text in the corresponding evidence field.
 4. Normalize prices and amounts to numbers in Bangladeshi Taka (BDT).
 5. For Cash on Delivery (COD):
-   - cod_available: true if COD is offered.
+   - cod_available: true if COD is explicitly offered.
    - cod_available: false if COD is explicitly denied or seller insists on full advance.
    - cod_available: null if COD is not discussed.
 6. For Advance Payment:
@@ -97,7 +111,7 @@ class AIExtractorService:
 
     @property
     def client(self) -> genai.Client:
-        """Lazy-loaded or injected Google GenAI client."""
+        """Lazy-loaded or injected Google GenAI client configured with timeout."""
         if self._client is not None:
             return self._client
         if not self.api_key:
@@ -105,49 +119,121 @@ class AIExtractorService:
                 "Gemini API key is not configured. Please set the GEMINI_API_KEY "
                 "environment variable or configure it in your .env file."
             )
-        self._client = genai.Client(api_key=self.api_key)
+        # Timeout configured in milliseconds for google-genai HttpOptions
+        timeout_ms = max(5000, settings.AI_REQUEST_TIMEOUT_SECONDS * 1000)
+        http_options = types.HttpOptions(timeout=timeout_ms)
+        self._client = genai.Client(
+            api_key=self.api_key,
+            http_options=http_options,
+        )
         return self._client
 
     def validate_extracted_claims(self, claims: ExtractedClaims, source_text: str) -> ExtractedClaims:
-        """Validate all evidence quotes against the source text to prevent hallucinations."""
-        evidence_fields = [
-            ("price_evidence", "price"),
-            ("cod_evidence", "cod_available"),
-            ("advance_payment_evidence", "advance_payment_required"),
-            ("payment_methods_evidence", "payment_methods"),
-            ("return_policy_evidence", "return_policy_available"),
-            ("warranty_evidence", "warranty_available"),
-            ("delivery_evidence", "delivery_conditions"),
-            ("urgency_evidence", "urgency_or_pressure"),
+        """Validate all evidence quotes against source text.
+
+        Removes unsupported normalized values from downstream comparisons to prevent
+        hallucinated claims from triggering false contradictions or misleading payment warnings.
+        """
+        # Definition: (claim_type, value_is_present_fn, evidence_attr, clear_fn)
+        checks = [
+            (
+                "price",
+                claims.price is not None,
+                claims.price_evidence,
+                lambda: (setattr(claims, "price", None), setattr(claims, "price_evidence", None)),
+                f"{claims.price} {claims.currency or 'BDT'}",
+            ),
+            (
+                "cod_available",
+                claims.cod_available is not None,
+                claims.cod_evidence,
+                lambda: (setattr(claims, "cod_available", None), setattr(claims, "cod_evidence", None)),
+                str(claims.cod_available),
+            ),
+            (
+                "advance_payment",
+                claims.advance_payment_required is not None or claims.advance_payment_amount is not None,
+                claims.advance_payment_evidence,
+                lambda: (
+                    setattr(claims, "advance_payment_required", None),
+                    setattr(claims, "advance_payment_amount", None),
+                    setattr(claims, "advance_payment_purpose", None),
+                    setattr(claims, "advance_payment_evidence", None),
+                ),
+                f"required={claims.advance_payment_required}, amount={claims.advance_payment_amount}",
+            ),
+            (
+                "payment_methods",
+                bool(claims.payment_methods),
+                claims.payment_methods_evidence,
+                lambda: (setattr(claims, "payment_methods", []), setattr(claims, "payment_methods_evidence", None)),
+                ", ".join(claims.payment_methods),
+            ),
+            (
+                "return_policy",
+                claims.return_policy_available is not None or claims.return_policy_terms is not None,
+                claims.return_policy_evidence,
+                lambda: (
+                    setattr(claims, "return_policy_available", None),
+                    setattr(claims, "return_policy_terms", None),
+                    setattr(claims, "return_policy_evidence", None),
+                ),
+                f"available={claims.return_policy_available}, terms={claims.return_policy_terms}",
+            ),
+            (
+                "warranty_available",
+                claims.warranty_available is not None or claims.warranty_terms is not None,
+                claims.warranty_evidence,
+                lambda: (
+                    setattr(claims, "warranty_available", None),
+                    setattr(claims, "warranty_terms", None),
+                    setattr(claims, "warranty_evidence", None),
+                ),
+                f"available={claims.warranty_available}, terms={claims.warranty_terms}",
+            ),
+            (
+                "delivery_conditions",
+                claims.delivery_conditions is not None,
+                claims.delivery_evidence,
+                lambda: (setattr(claims, "delivery_conditions", None), setattr(claims, "delivery_evidence", None)),
+                str(claims.delivery_conditions),
+            ),
+            (
+                "urgency_or_pressure",
+                claims.urgency_or_pressure is not None,
+                claims.urgency_evidence,
+                lambda: (setattr(claims, "urgency_or_pressure", None), setattr(claims, "urgency_evidence", None)),
+                str(claims.urgency_or_pressure),
+            ),
         ]
 
-        # Check each evidence field
-        for ev_attr, val_attr in evidence_fields:
-            quote = getattr(claims, ev_attr, None)
-            if quote and not verify_evidence_in_text(quote, source_text):
-                logger.warning(
-                    "Hallucinated or unsupported evidence detected for %s: '%s'. Marking unsupported.",
-                    ev_attr,
-                    quote,
-                )
-                # Mark as unsupported by nullifying the invalid quote and recording an unsupported claim
-                claims.claims_list.append(
-                    SingleClaim(
-                        claim_type=val_attr,
-                        normalized_value=str(getattr(claims, val_attr, "")),
-                        original_evidence=quote,
+        for claim_type, is_present, evidence_val, clear_fn, normalized_repr in checks:
+            if is_present:
+                is_supported = verify_evidence_in_text(evidence_val, source_text)
+                if not is_supported:
+                    logger.warning(
+                        "Unsupported evidence detected for claim '%s'. Evidence quote was missing or not found in source text. Discarding claim from active comparison.",
+                        claim_type,
+                    )
+                    unsupported_claim = SingleClaim(
+                        claim_type=claim_type,
+                        normalized_value=normalized_repr,
+                        original_evidence=evidence_val,
                         source_type=claims.source_type,
                         is_supported=False,
                     )
-                )
-                setattr(claims, ev_attr, None)
+                    claims.claims_list.append(unsupported_claim)
+                    claims.unsupported_claims.append(unsupported_claim)
+                    # Clear value so it does not influence downstream comparison
+                    clear_fn()
 
-        # Validate individual atomic claims in claims_list
+        # Also validate existing atomic claims in claims_list
         validated_list: list[SingleClaim] = []
         for c in claims.claims_list:
             if c.original_evidence:
-                supported = verify_evidence_in_text(c.original_evidence, source_text)
-                c.is_supported = supported
+                c.is_supported = verify_evidence_in_text(c.original_evidence, source_text)
+            else:
+                c.is_supported = False
             validated_list.append(c)
 
         claims.claims_list = validated_list
@@ -179,11 +265,21 @@ class AIExtractorService:
         except ConfigurationError:
             raise
         except APIError as e:
-            logger.error("Gemini API Error: %s", str(e))
-            raise AIProviderError(f"Gemini API error occurred during extraction: {e.message}") from e
+            logger.error("Gemini API Error (status_code=%s)", getattr(e, "code", "unknown"))
+            code = getattr(e, "code", None)
+            if code == 429:
+                raise AIQuotaExhaustedError("Gemini API quota or rate limit exceeded. Please try again later.") from e
+            elif code in (408, 504):
+                raise AITimeoutError("Gemini API request timed out. Please try again.") from e
+            elif code in (401, 403):
+                raise ConfigurationError("Gemini API authentication failed. Please check your GEMINI_API_KEY.") from e
+            raise AIProviderError("AI service provider returned an error.") from e
+        except httpx.TimeoutException as e:
+            logger.error("AI provider HTTP client timeout: %s", str(e))
+            raise AITimeoutError("AI extraction request timed out.") from e
         except Exception as e:
-            logger.error("Failed to call AI provider: %s", str(e))
-            raise AIProviderError(f"AI provider communication failure: {str(e)}") from e
+            logger.error("Unexpected error during AI call: %s", type(e).__name__)
+            raise AIProviderError("AI service provider is currently unavailable. Please try again later.") from e
 
         if not response.text:
             raise AIResponseValidationError("AI provider returned an empty response.")
@@ -193,8 +289,8 @@ class AIExtractorService:
             claims = ExtractedClaims(**data)
             claims.source_type = source_type
         except Exception as e:
-            logger.error("Failed to parse AI response into schema: %s. Response was: %s", str(e), response.text)
-            raise AIResponseValidationError(f"Could not parse AI output into valid claims schema: {str(e)}") from e
+            logger.error("Failed to parse AI response into schema: %s", type(e).__name__)
+            raise AIResponseValidationError("Could not parse AI output into valid claims schema.") from e
 
         # Validate evidence against source text to prevent hallucinated quotes
         validated_claims = self.validate_extracted_claims(claims, text)

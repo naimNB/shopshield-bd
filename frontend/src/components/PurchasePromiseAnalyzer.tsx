@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Sparkles,
   AlertTriangle,
@@ -13,9 +13,18 @@ import {
   Info,
   Clock,
   ArrowRight,
+  ShieldAlert,
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+interface SingleClaim {
+  claim_type: string;
+  normalized_value: string | null;
+  original_evidence: string | null;
+  source_type: string;
+  is_supported: boolean;
+}
 
 interface ComparisonItem {
   field: string;
@@ -42,11 +51,41 @@ interface MissingInfoItem {
   importance: string;
 }
 
+interface ExtractedClaims {
+  source_type: string;
+  product_name: string | null;
+  price: number | null;
+  currency: string | null;
+  price_evidence: string | null;
+  cod_available: boolean | null;
+  cod_evidence: string | null;
+  advance_payment_required: boolean | null;
+  advance_payment_amount: number | null;
+  advance_payment_purpose: string | null;
+  advance_payment_evidence: string | null;
+  payment_methods: string[];
+  payment_methods_evidence: string | null;
+  return_policy_available: boolean | null;
+  return_policy_terms: string | null;
+  return_policy_evidence: string | null;
+  warranty_available: boolean | null;
+  warranty_terms: string | null;
+  warranty_evidence: string | null;
+  delivery_conditions: string | null;
+  delivery_evidence: string | null;
+  urgency_or_pressure: string | null;
+  urgency_evidence: string | null;
+  claims_list: SingleClaim[];
+  unsupported_claims: SingleClaim[];
+}
+
 interface AnalyzeResponse {
   status: string;
   has_contradictions: boolean;
   contradiction_count: number;
   needs_review_count: number;
+  advertisement_claims: ExtractedClaims;
+  seller_chat_claims: ExtractedClaims;
   comparison_results: ComparisonItem[];
   payment_warnings: PaymentWarning[];
   missing_information: MissingInfoItem[];
@@ -59,7 +98,7 @@ interface AnalyzeResponse {
   };
 }
 
-// Pre-packaged test scenarios for Bangladeshi online shopping
+// Pre-packaged test scenarios for Bangladeshi online shopping (clearly marked as fictional)
 const SAMPLE_SCENARIOS = [
   {
     title: 'Scenario 1: Price & COD Contradiction (Bangla)',
@@ -96,14 +135,62 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
   const [results, setResults] = useState<AnalyzeResponse | null>(null);
   const [copiedQuestionIndex, setCopiedQuestionIndex] = useState<number | null>(null);
 
+  // Request race condition protection
+  const currentRequestIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleAdTextChange = (value: string) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setAdText(value);
+    setResults(null);
+    setError(null);
+  };
+
+  const handleChatTextChange = (value: string) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setChatText(value);
+    setResults(null);
+    setError(null);
+  };
+
+  const loadScenario = (index: number) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setAdText(SAMPLE_SCENARIOS[index].ad);
+    setChatText(SAMPLE_SCENARIOS[index].chat);
+    setResults(null);
+    setError(null);
+  };
+
   const handleAnalyze = async () => {
-    if (adText.trim().length < 5 || chatText.trim().length < 5) {
+    const adClean = adText.trim();
+    const chatClean = chatText.trim();
+
+    if (adClean.length < 5 || chatClean.length < 5) {
       setError('Please provide at least 5 characters for both the advertisement and the conversation text.');
       return;
     }
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const requestId = ++currentRequestIdRef.current;
+
     setLoading(true);
     setError(null);
+    setResults(null);
+
+    // Client-side safety timeout after 35s
+    const timeoutTimer = setTimeout(() => {
+      controller.abort();
+    }, 35000);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/analyze`, {
@@ -112,21 +199,37 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          advertisement_text: adText,
-          seller_chat_text: chatText,
+          advertisement_text: adClean,
+          seller_chat_text: chatClean,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutTimer);
+
+      // Discard response if a newer request was dispatched in the meantime
+      if (requestId !== currentRequestIdRef.current) {
+        return;
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         if (response.status === 503) {
           throw new Error(
             errorData.detail ||
-              'Gemini API key is not configured on the backend server. Set GEMINI_API_KEY in the backend .env file to enable live AI extraction.'
+              'Gemini API key is not configured on the backend server. Configure GEMINI_API_KEY in the backend .env file to enable live AI extraction.'
+          );
+        } else if (response.status === 429) {
+          throw new Error(
+            errorData.detail || 'Gemini API rate limit or quota exceeded. Please wait a moment and try again.'
+          );
+        } else if (response.status === 504) {
+          throw new Error(
+            errorData.detail || 'The AI extraction timed out. Please try again with shorter text.'
           );
         } else if (response.status === 502) {
           throw new Error(
-            errorData.detail || 'The AI service provider failed to process the request. Please check quota or try again.'
+            errorData.detail || 'The AI service provider returned an error. Please try again.'
           );
         } else {
           throw new Error(errorData.detail || `Server error (${response.status}): Could not complete analysis.`);
@@ -134,15 +237,29 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
       }
 
       const data: AnalyzeResponse = await response.json();
-      setResults(data);
+      if (requestId === currentRequestIdRef.current) {
+        setResults(data);
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError(err.message);
+        if (err.name === 'AbortError') {
+          if (requestId === currentRequestIdRef.current) {
+            setError('The analysis request timed out or was cancelled. Please check your connection and try again.');
+          }
+          return;
+        }
+        if (requestId === currentRequestIdRef.current) {
+          setError(err.message);
+        }
       } else {
-        setError('An unexpected error occurred while communicating with the analysis server.');
+        if (requestId === currentRequestIdRef.current) {
+          setError('An unexpected error occurred while communicating with the analysis server.');
+        }
       }
     } finally {
-      setLoading(false);
+      if (requestId === currentRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -152,17 +269,15 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
     setTimeout(() => setCopiedQuestionIndex(null), 2000);
   };
 
-  const loadScenario = (index: number) => {
-    setAdText(SAMPLE_SCENARIOS[index].ad);
-    setChatText(SAMPLE_SCENARIOS[index].chat);
-    setError(null);
-  };
+  const allUnsupported = results
+    ? [...results.advertisement_claims.unsupported_claims, ...results.seller_chat_claims.unsupported_claims]
+    : [];
 
   return (
     <section id="analyzer" className="py-16 md:py-24 border-t border-slate-800 bg-[#060b16] relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-12">
+        <div className="text-center max-w-3xl mx-auto mb-10">
           <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold mb-3">
             <Sparkles className="w-3.5 h-3.5" />
             <span>AI Purchase Promise & Contradiction Analyzer</span>
@@ -182,30 +297,39 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
         </div>
 
         {/* Quick Sample Selector */}
-        <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
-          <span className="text-xs font-medium text-slate-400 mr-2 flex items-center">
-            <Clock className="w-3.5 h-3.5 mr-1 text-emerald-400" /> Load Sample Scenario:
-          </span>
-          {SAMPLE_SCENARIOS.map((scenario, idx) => (
+        <div className="mb-6">
+          <div className="text-center mb-2">
+            <span className="text-[11px] font-mono text-amber-400/90 bg-amber-950/30 px-2.5 py-1 rounded border border-amber-900/40 inline-flex items-center">
+              <AlertCircle className="w-3 h-3 mr-1 text-amber-400" />
+              Note: Sample scenarios are fictional simulations for testing contradiction detection and safety rules.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="text-xs font-medium text-slate-400 mr-2 flex items-center">
+              <Clock className="w-3.5 h-3.5 mr-1 text-emerald-400" /> Load Sample Scenario:
+            </span>
+            {SAMPLE_SCENARIOS.map((scenario, idx) => (
+              <button
+                key={idx}
+                onClick={() => loadScenario(idx)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 hover:border-emerald-500/50 transition-all"
+              >
+                {scenario.title}
+              </button>
+            ))}
             <button
-              key={idx}
-              onClick={() => loadScenario(idx)}
-              className="text-xs px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 hover:border-emerald-500/50 transition-all"
+              onClick={() => {
+                if (abortControllerRef.current) abortControllerRef.current.abort();
+                setAdText('');
+                setChatText('');
+                setResults(null);
+                setError(null);
+              }}
+              className="text-xs px-3 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 text-slate-400 border border-slate-800 transition-colors"
             >
-              {scenario.title}
+              Clear Inputs
             </button>
-          ))}
-          <button
-            onClick={() => {
-              setAdText('');
-              setChatText('');
-              setResults(null);
-              setError(null);
-            }}
-            className="text-xs px-3 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 text-slate-400 border border-slate-800 transition-colors"
-          >
-            Clear Inputs
-          </button>
+          </div>
         </div>
 
         {/* Dual Input Form */}
@@ -222,7 +346,7 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
               </div>
               <textarea
                 value={adText}
-                onChange={(e) => setAdText(e.target.value)}
+                onChange={(e) => handleAdTextChange(e.target.value)}
                 placeholder="Paste the seller's Facebook page caption, post text, or website product description..."
                 rows={9}
                 className="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm text-slate-100 placeholder-slate-600 outline-none transition-all font-sans leading-relaxed resize-y"
@@ -245,7 +369,7 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
               </div>
               <textarea
                 value={chatText}
-                onChange={(e) => setChatText(e.target.value)}
+                onChange={(e) => handleChatTextChange(e.target.value)}
                 placeholder="Paste the direct conversation from Facebook Messenger, WhatsApp, or SMS..."
                 rows={9}
                 className="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-sm text-slate-100 placeholder-slate-600 outline-none transition-all font-sans leading-relaxed resize-y"
@@ -286,7 +410,7 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
             <div className="space-y-1">
               <strong className="block font-semibold">Analysis Notice</strong>
               <p className="text-slate-300 leading-relaxed">{error}</p>
-              {error.includes('Gemini API key is not configured') && (
+              {error.includes('GEMINI_API_KEY') && (
                 <p className="text-slate-400 font-mono text-xs pt-1">
                   Tip: Copy <code>.env.example</code> to <code>.env</code> in the project root and add your{' '}
                   <code>GEMINI_API_KEY</code>.
@@ -354,6 +478,29 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Unsupported / Fabricated Quotes Warning (if any was caught by validator) */}
+            {allUnsupported.length > 0 && (
+              <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-800/60 text-xs">
+                <div className="flex items-center space-x-2 text-amber-400 font-semibold mb-1">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Evidence Verification Notice</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed mb-2">
+                  ShopShield BD&apos;s anti-hallucination engine detected claims where verbatim supporting quotes
+                  could not be verified in the input text. To protect analysis integrity, these values were discarded
+                  from contradiction detection:
+                </p>
+                <div className="space-y-1 font-mono text-[11px] text-slate-400">
+                  {allUnsupported.map((u, i) => (
+                    <div key={i} className="p-1.5 rounded bg-slate-950 border border-slate-800">
+                      <strong className="text-amber-300">[{u.source_type} : {u.claim_type}]</strong> {u.normalized_value}
+                      {u.original_evidence ? ` — Quote not found: "${u.original_evidence}"` : ' — No evidence quotation provided'}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Comparison Cards Grid */}
             <div>

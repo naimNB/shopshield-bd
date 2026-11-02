@@ -33,7 +33,7 @@ class PaymentRulesEngine:
 
         product_price = chat_claims.price or ad_claims.price
 
-        if advance_required:
+        if advance_required and evidence:
             if advance_purpose == "full_price" or (
                 product_price and advance_amount and abs(advance_amount - product_price) < 1.0
             ):
@@ -111,7 +111,7 @@ class PaymentRulesEngine:
         # 2. Urgency and Pressure Rules
         urgency = chat_claims.urgency_or_pressure or ad_claims.urgency_or_pressure
         urgency_ev = chat_claims.urgency_evidence or ad_claims.urgency_evidence
-        if urgency:
+        if urgency and urgency_ev:
             warnings.append(
                 PaymentWarning(
                     type=PaymentWarningType.IMMEDIATE_URGENCY_PRESSURE.value,

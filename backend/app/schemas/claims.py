@@ -74,3 +74,7 @@ class ExtractedClaims(BaseModel):
 
     # All granular claims
     claims_list: List[SingleClaim] = Field(default_factory=list, description="All granular atomic claims")
+    unsupported_claims: List[SingleClaim] = Field(
+        default_factory=list,
+        description="Claims discarded or marked unsupported due to invalid or missing evidence",
+    )
