@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # Multimodal AI Engine Configuration
     GEMINI_API_KEY: Union[str, None] = None
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash"
     AI_REQUEST_TIMEOUT_SECONDS: int = 30
     MAX_INPUT_TEXT_LENGTH: int = 15000
 

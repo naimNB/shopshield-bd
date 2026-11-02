@@ -9,6 +9,7 @@ removed from downstream comparisons to avoid false contradictions.
 import json
 import logging
 import re
+import time
 from typing import Optional, Any
 from google import genai
 from google.genai import types
@@ -251,37 +252,63 @@ class AIExtractorService:
             f"Extract all claims and return the structured JSON conforming to the schema."
         )
 
-        try:
-            client = self.client
-            response = client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=ExtractedClaims,
-                    temperature=0.0,
-                ),
-            )
-        except ConfigurationError:
-            raise
-        except APIError as e:
-            logger.error("Gemini API Error (status_code=%s)", getattr(e, "code", "unknown"))
-            code = getattr(e, "code", None)
-            if code == 429:
-                raise AIQuotaExhaustedError("Gemini API quota or rate limit exceeded. Please try again later.") from e
-            elif code in (408, 504):
-                raise AITimeoutError("Gemini API request timed out. Please try again.") from e
-            elif code in (401, 403):
-                raise ConfigurationError("Gemini API authentication failed. Please check your GEMINI_API_KEY.") from e
-            raise AIProviderError("AI service provider returned an error.") from e
-        except httpx.TimeoutException as e:
-            logger.error("AI provider HTTP client timeout: %s", str(e))
-            raise AITimeoutError("AI extraction request timed out.") from e
-        except Exception as e:
-            logger.error("Unexpected error during AI call: %s", type(e).__name__)
-            raise AIProviderError("AI service provider is currently unavailable. Please try again later.") from e
+        client = self.client
+        models_to_try = [self.model_name]
+        fallback_model = "gemini-3.5-flash-lite" if self.model_name != "gemini-3.5-flash-lite" else "gemini-3.5-flash"
+        if fallback_model not in models_to_try:
+            models_to_try.append(fallback_model)
 
-        if not response.text:
+        response = None
+        last_error = None
+
+        for model in models_to_try:
+            for attempt in range(2):
+                try:
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=ExtractedClaims,
+                            temperature=0.0,
+                        ),
+                    )
+                    if response and response.text:
+                        break
+                except ConfigurationError:
+                    raise
+                except APIError as e:
+                    code = getattr(e, "code", None)
+                    if code == 429:
+                        last_error = e
+                        if attempt == 0:
+                            time.sleep(2.0)
+                            continue
+                        raise AIQuotaExhaustedError("Gemini API quota or rate limit exceeded. Please try again later.") from e
+                    elif code in (408, 504):
+                        raise AITimeoutError("Gemini API request timed out. Please try again.") from e
+                    elif code in (401, 403):
+                        raise ConfigurationError("Gemini API authentication failed. Please check your GEMINI_API_KEY.") from e
+                    elif code == 503:
+                        last_error = e
+                        if attempt == 0:
+                            time.sleep(1.5)
+                            continue
+                        # If second attempt on this model failed, break to try fallback model
+                        break
+                    raise AIProviderError("AI service provider returned an error.") from e
+                except httpx.TimeoutException as e:
+                    logger.error("AI provider HTTP client timeout: %s", str(e))
+                    raise AITimeoutError("AI extraction request timed out.") from e
+                except Exception as e:
+                    logger.error("Unexpected error during AI call: %s", type(e).__name__)
+                    raise AIProviderError("AI service provider is currently unavailable. Please try again later.") from e
+            if response and response.text:
+                break
+
+        if not response or not response.text:
+            if last_error:
+                raise AIProviderError("AI service provider returned an error.") from last_error
             raise AIResponseValidationError("AI provider returned an empty response.")
 
         try:
