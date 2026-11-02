@@ -3,13 +3,12 @@
 > **AI-Powered Purchase Promise & Payment Safety Assistant for Bangladesh Digital Commerce**  
 > *Built for the **YUNet AIgnite Buildathon 2026***
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-6.0-646CFF.svg?logo=vite&logoColor=white)](https://vitejs.dev)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
-[![Pytest](https://img.shields.io/badge/Pytest-Passing-0A9EDC.svg?logo=pytest&logoColor=white)]()
+[![Google GenAI](https://img.shields.io/badge/Google_GenAI-SDK_2.0+-4285F4.svg?logo=google&logoColor=white)](https://github.com/googleapis/python-genai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -18,52 +17,103 @@
 
 **ShopShield BD** is an open-source consumer protection platform engineered to safeguard online shoppers in Bangladesh—particularly within the massive **Social Commerce (F-Commerce)** ecosystem across Facebook, Instagram, and WhatsApp.
 
-While social commerce has democratized micro-entrepreneurship in Bangladesh, the absence of formal marketplace contracts leaves buyers vulnerable to:
-- **Advance Payment Fraud:** Demands for 50%–100% advance payments sent via personal bKash or Nagad numbers, followed by immediate seller blocking.
-- **Promise Drift & Denials:** Verbal warranties, return guarantees, and condition promises made in private chat messages are rejected upon delivery.
-- **Counterfeit & Delivery Tampering:** Delivery of fake goods via courier services without unboxing inspection permission, often accompanied by forged courier consignment receipts.
+### What ShopShield BD Is:
+- An objective **purchase promise comparison tool** that cross-references a seller's public advertisement/caption against private chat conversations before payment.
+- A **payment safety rules engine** that highlights advance payment demands, flags high-pressure urgency tactics, and gives clear buyer recommendations.
+- A **practical question generator** providing tailored questions in simple Bangla for buyers to ask sellers before sending money.
 
-ShopShield BD introduces an AI-powered verification layer that transforms informal chat agreements into verifiable digital certificates, flags risky payment transfers, and validates logistics tracking.
+### What ShopShield BD Is NOT:
+- ❌ **NOT a scam classifier:** It never outputs fake "fraud probability scores" or subjective accusations against sellers.
+- ❌ **NOT an arbitrary blocklist:** Legitimate practices in Bangladesh (such as asking for a ৳100–৳200 courier fee in advance) are recognized as normal f-commerce logistics, not flagged as fraud.
+
+---
+
+## 🎯 Feature Status & Scope
+
+To ensure transparent engineering and buildathon integrity, features are explicitly divided into implemented, experimental, and planned capabilities:
+
+### ✅ Implemented Features (Working in Task 02)
+- **Structured AI Extraction Service:** Uses the official `google-genai` Python SDK to extract standardized claims (Price, Currency, COD availability, Advance requirements, Return terms, Warranty, Delivery conditions, Urgency tactics). Supports **Bangla**, **English**, and **Banglish**.
+- **Evidence Quote Verification:** Validates that extracted quotations actually occur in the source text to prevent model hallucination. Unmatched quotes are automatically flagged as unsupported.
+- **Deterministic Contradiction Detection:** Evaluates commitments across prices, COD availability, advance fees, return periods, and warranty duration. Classifies each attribute as `CONTRADICTION`, `CONSISTENT`, `INSUFFICIENT_INFORMATION`, or `NEEDS_REVIEW`.
+- **Payment Safety Rules Engine:** Evaluates payment risk levels:
+  - Detects full advance payment demands on personal wallets.
+  - Recognizes standard courier delivery fee advances (৳100–৳250) as normal commerce practice (*does NOT imply fraud*).
+  - Flags high advance payment demands (> ৳250).
+  - Identifies artificial urgency and sales pressure.
+  - Highlights omitted return/warranty terms.
+- **Buyer Verification Question Generator:** Generates actionable, copy-pasteable verification questions in clear Bangla (ক্রেতার জন্য যাচাইকারী প্রশ্নমালা).
+- **Backend API:** `POST /api/v1/analyze`, `GET /health`, `GET /api/v1/status`, `GET /docs`.
+- **Frontend Analysis Interface:** Dual-input responsive interface with 1-click sample scenarios, side-by-side promise cards, payment warnings, and copyable Bangla questions.
+- **Automated Testing:** 17 unit and integration tests passing in Pytest.
+
+### 🧪 Experimental Features
+- Constrained semantic inference for complex or multi-clause return policies.
+- Screenshot upload extension point in API request schemas (`image_urls`).
+
+### 🗺️ Planned Roadmap (Future Phases)
+- **Multimodal Screenshot OCR (Task 03):** Direct image upload and optical document extraction for Messenger and WhatsApp screenshots.
+- **Courier Logistics Parity (Task 03):** Cross-referencing consignment codes with Steadfast, Pathao, and RedX tracking gateways to detect spoofed courier slips.
+- **Digital Promise Pass (Task 03):** Downloadable PDF / QR-verified token summarizing agreed commitments.
+- **Community Risk Signals (Task 04):** Crowdsourced scam report registry for repeat fraudulent numbers and fake Facebook pages.
+- **DNCRP Dossier Export (Task 04):** One-click complaint packaging formatted according to Directorate of National Consumer Rights Protection guidelines.
 
 ---
 
 ## 🏗️ Monorepo Architecture
 
-ShopShield BD is organized as a clean, modular monorepo:
-
 ```
 shopshield-bd/
 ├── backend/                   # FastAPI backend services
 │   ├── app/
-│   │   ├── main.py            # FastAPI application entry point & CORS
-│   │   ├── config.py          # Pydantic BaseSettings environment loader
+│   │   ├── main.py            # FastAPI entry point, CORS, root /health & /docs
+│   │   ├── config.py          # Settings management with Pydantic BaseSettings
 │   │   ├── api/
 │   │   │   └── v1/
-│   │   │       └── routes.py  # /health, /status endpoints
-│   │   └── schemas/
-│   │       └── health.py      # HealthResponse & ServiceStatus Pydantic models
+│   │   │       ├── __init__.py
+│   │   │       └── routes.py  # /health, /status, /analyze endpoints
+│   │   ├── schemas/           # Pydantic v2 schemas
+│   │   │   ├── analysis.py    # Request/Response payloads
+│   │   │   ├── claims.py      # ExtractedClaims & SingleClaim
+│   │   │   ├── comparison.py  # ComparisonItem & ContradictionStatus
+│   │   │   ├── rules.py       # PaymentWarning & MissingInfoItem
+│   │   │   └── health.py      # HealthResponse & ServiceStatus
+│   │   └── services/          # Core business & AI logic
+│   │       ├── ai_extractor.py        # google-genai extractor + evidence validator
+│   │       ├── comparison_service.py  # Deterministic promise comparison
+│   │       ├── rules_engine.py        # Payment safety rules & Bangla questions
+│   │       └── analyzer.py            # Workflow orchestrator
 │   ├── requirements.txt       # Production dependencies
-│   └── requirements-dev.txt   # Pytest and test client dependencies
+│   └── requirements-dev.txt   # Development and test dependencies
 ├── frontend/                  # React 19 + Vite + Tailwind CSS frontend
 │   ├── src/
-│   │   ├── components/        # Navbar, Hero, ProblemSolution, Features,
-│   │   │                      # VerificationPreview, ArchitectureSection, Footer
-│   │   ├── App.tsx            # Main layout component
-│   │   ├── main.tsx           # Application DOM mount
-│   │   └── index.css          # Tailwind CSS styles & animations
-│   ├── package.json           # Frontend dependencies & scripts
-│   ├── vite.config.ts         # Vite bundler configuration
-│   └── tailwind.config.js     # Brand Emerald and Dark Navy color system
-├── docs/                      # Technical documentation & hackathon vision
+│   │   ├── components/
+│   │   │   ├── PurchasePromiseAnalyzer.tsx # Real-time interactive promise analyzer
+│   │   │   ├── Navbar.tsx             # Navigation & live backend health badge
+│   │   │   ├── Hero.tsx               # Value proposition & primary CTA
+│   │   │   ├── ProblemSolution.tsx    # F-Commerce problem breakdown
+│   │   │   ├── Features.tsx           # Feature showcase
+│   │   │   ├── VerificationPreview.tsx# Architectural roadmap preview
+│   │   │   ├── ArchitectureSection.tsx# Monorepo architecture visualizer
+│   │   │   └── Footer.tsx             # Attributions and developer links
+│   │   ├── App.tsx                    # Main layout
+│   │   ├── main.tsx                   # React root
+│   │   └── index.css                  # Tailwind utility styling
+│   ├── vite.config.ts         # Vite bundler config
+│   ├── tailwind.config.js     # Emerald/teal & navy color palette
+│   └── package.json           # Frontend dependencies
+├── docs/                      # Technical documentation
 │   ├── architecture.md        # Deep-dive architecture and data flow
 │   ├── api-specification.md   # Complete OpenAPI specification
 │   └── hackathon-vision.md    # Problem statement, DNCRP alignment, and roadmap
-├── tests/                     # Automated backend test suite
-│   ├── conftest.py            # Pytest test client fixtures
-│   └── test_health.py         # Health, status, and OpenAPI smoke tests
+├── tests/                     # Automated testing suite
+│   ├── conftest.py            # Pytest client fixtures
+│   ├── test_health.py         # System health & docs tests
+│   └── test_analysis.py       # 10 core promise analysis tests
 ├── .env.example               # Safe environment variable template
 ├── .gitignore                 # Excludes secrets, venvs, and build artifacts
 ├── pytest.ini                 # Pytest runner configuration
+├── LICENSE                    # MIT License
 └── README.md                  # Project root guide
 ```
 
@@ -75,9 +125,8 @@ shopshield-bd/
 |---|---|
 | **Frontend** | React 19, TypeScript 5, Vite 6, Tailwind CSS 3.4, Lucide React |
 | **Backend** | Python 3.12+, FastAPI, Pydantic v2, Uvicorn (ASGI) |
-| **AI / Multimodal** | Google Gemini 2.5 Flash API (*Integration in Task 02*) |
-| **Testing** | Pytest, Starlette TestClient, ESLint 9, TypeScript type checking |
-| **Logistics Check** | Steadfast, Pathao, and RedX consignment schemas (*Planned*) |
+| **AI / Multimodal** | Official `google-genai` Python SDK (`gemini-2.5-flash`) |
+| **Testing** | Pytest, Starlette TestClient, ESLint 9, TypeScript compiler (`tsc`) |
 
 ---
 
@@ -104,7 +153,13 @@ Copy the example environment file to `.env`:
 ```bash
 cp .env.example .env
 ```
-*(Never commit `.env` containing sensitive credentials to Git).*
+
+Open `.env` and configure your Google Gemini API key:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
+```
+*(Obtain a free key from [Google AI Studio](https://aistudio.google.com/)).*
 
 ---
 
@@ -117,7 +172,7 @@ source .venv/bin/activate
 pip install -r backend/requirements-dev.txt
 ```
 
-#### Or using `uv` (fastest):
+#### Or using `uv`:
 ```bash
 uv venv --python 3.12 .venv
 source .venv/bin/activate
@@ -145,7 +200,7 @@ npm install
 npm run dev
 ```
 
-- **Landing Page:** [http://localhost:5173](http://localhost:5173)
+- **Landing Page & Analyzer UI:** [http://localhost:5173](http://localhost:5173)
 
 ---
 
@@ -156,50 +211,34 @@ npm run dev
 # In the root directory with virtualenv active
 pytest -v tests/
 ```
-All 5 automated tests verify:
-- `GET /health` returns 200 with healthy status and service breakdown
-- `GET /api/v1/health` matches root diagnostic contract
-- `GET /` serves welcome index and docs metadata
-- `GET /api/v1/status` returns hackathon phase details
-- `GET /docs` and `GET /openapi.json` serve valid OpenAPI 3.1 documentation
+
+All 17 automated tests verify:
+1. **Price contradiction:** Differing prices flagged as `CONTRADICTION` with high severity.
+2. **COD contradiction:** Ad promising COD while chat denies it flagged as `CONTRADICTION`.
+3. **Return policy contradiction:** Offering returns in ad but denying in chat flagged as `CONTRADICTION`.
+4. **Consistent promises:** Matching prices, COD, and warranty flagged as `CONSISTENT`.
+5. **Missing information:** Omitted attributes marked as `INSUFFICIENT_INFORMATION` (never confused with contradiction).
+6. **Legitimate advance delivery charge:** Standard courier fees (৳100–৳250) marked as `info` with clear explanation that this is normal practice.
+7. **Bangla & Banglish inputs:** Accurate substring quote matching across Bangla and Banglish scripts.
+8. **Unsupported extracted claims:** Claims with evidence not present in source text marked unsupported.
+9. **AI API error handling:** Returns 503 when API key is missing, 502 on provider failure, 422 on short text. Never returns fake data.
+10. **No hallucinated quotes:** Automated validator rejects hallucinated citations.
+11. **Health and OpenAPI specs:** Valid `/health`, `/status`, and `/openapi.json` endpoints.
 
 ### Run Frontend Lint & Production Build
 ```bash
 cd frontend
-npm run lint    # ESLint check
-npm run build   # TypeScript type check + Vite production bundle
+npm run lint    # ESLint check (0 errors, 0 warnings)
+npm run build   # TypeScript strict check + Vite production bundle
 ```
-
----
-
-## 🎯 Hackathon Roadmap (YUNet AIgnite 2026)
-
-- [x] **Task 01: Project Foundation & Monorepo Setup**
-  - Clean monorepo structure (`frontend/`, `backend/`, `docs/`, `tests/`)
-  - Modern, responsive React 19 + Tailwind CSS landing page
-  - FastAPI `/health` endpoint and auto-generated `/docs`
-  - Zero-secret `.gitignore` and `.env.example`
-  - Automated smoke test and build pipeline passing
-- [ ] **Task 02: Multimodal Chat & Promise Extraction Engine**
-  - Integrate Google Gemini 2.5 Flash API
-  - Extract structured terms from Messenger & WhatsApp screenshots
-  - Implement `/api/v1/promises/audit`
-- [ ] **Task 03: Payment Risk Radar & Courier Parity Verification**
-  - bKash/Nagad P2P vs. Merchant validation rules
-  - Steadfast/Pathao tracking ID integrity checks
-  - Digital Promise Pass certificate generator
-- [ ] **Task 04: Community Risk Signals & DNCRP Consumer Rights Dossier**
-  - Community crowdsourced scam alert registry
-  - Standardized export for formal consumer complaints
-- [ ] **Task 05: Final Evaluation & Demo Deployment**
 
 ---
 
 ## 🔒 Security & Privacy Notice
 
-- **No Fake Scores:** In compliance with ethical AI principles, ShopShield BD does not present fabricated risk scores or simulated AI predictions prior to model engine integration.
-- **Privacy First:** Chat screenshots submitted for promise extraction are processed with privacy guardrails, with PII masking options.
-- **Secrets Management:** Environment variables, API keys, and credentials are strictly excluded from source control.
+- **No Fake Scores:** ShopShield BD does not present fabricated risk scores or simulated AI predictions.
+- **Privacy First:** Text submitted for analysis is processed via transient API calls without persistent user data retention.
+- **Secrets Management:** `.gitignore` excludes all `.env` files, credentials, and keys.
 
 ---
 

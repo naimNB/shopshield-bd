@@ -40,6 +40,7 @@ app.add_middleware(
 )
 async def root_health() -> HealthResponse:
     """Return health status at root level."""
+    ai_status = "operational" if settings.GEMINI_API_KEY else "unconfigured (missing GEMINI_API_KEY)"
     return HealthResponse(
         status="healthy",
         project=settings.PROJECT_NAME,
@@ -48,7 +49,7 @@ async def root_health() -> HealthResponse:
         services=ServiceStatus(
             api="operational",
             database="configured",
-            ai_engine="standby",
+            ai_engine=ai_status,
         ),
         docs_url="/docs",
     )
@@ -67,7 +68,8 @@ async def root_index():
         "event": "YUNet AIgnite Buildathon 2026",
         "documentation": "/docs",
         "health": "/health",
-        "api_v1": f"{settings.API_V1_PREFIX}/health",
+        "api_v1_health": f"{settings.API_V1_PREFIX}/health",
+        "api_v1_analyze": f"{settings.API_V1_PREFIX}/analyze",
     }
 
 

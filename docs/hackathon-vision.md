@@ -34,20 +34,25 @@ ShopShield BD acts as an AI-powered safety layer that empowers buyers **before**
 
 - [x] **Task 01: Project Foundation & Monorepo Setup (Completed)**
   - Initialize clean monorepo (`frontend/`, `backend/`, `docs/`, `tests/`).
-  - Deploy responsive React 19 + Vite + Tailwind landing page with architectural preview.
+  - Deploy responsive React 19 + Vite + Tailwind landing page.
   - Set up FastAPI backend with working `/health`, `/status`, and OpenAPI `/docs`.
   - Configure `.env.example`, secure `.gitignore`, and passing pytest smoke tests.
-- [ ] **Task 02: Multimodal Chat & Promise Extraction Engine**
-  - Integrate Google Gemini 2.5 Flash API with Python backend.
-  - Implement `/api/v1/promises/audit` to accept multi-image chat screenshots.
-  - Build structured extraction prompt and Pydantic schemas for purchase promise terms.
-  - Connect frontend file upload interface to backend audit endpoint.
-- [ ] **Task 03: Payment Risk Engine & Courier Parity Verification**
-  - Implement heuristic rules engine for bKash/Nagad account categorization.
-  - Integrate mock and sandbox courier tracking verification (Steadfast/Pathao).
-  - Generate digital downloadable "Promise Pass" (PDF / QR code summary).
+- [x] **Task 02: Purchase Promise Extraction & Contradiction Detection (Completed)**
+  - Integrated official `google-genai` Python SDK with Gemini 2.5 Flash.
+  - Implemented structured Pydantic extraction for price, COD, advance payments, return policy, warranty, delivery terms, and urgency tactics (supporting Bangla, English, Banglish).
+  - Built strict Evidence Quote Verification rejecting hallucinated citations.
+  - Implemented deterministic Contradiction Detection (`CONTRADICTION`, `CONSISTENT`, `INSUFFICIENT_INFORMATION`, `NEEDS_REVIEW`).
+  - Created deterministic Payment Safety Rules Engine distinguishing normal courier advances (not fraud) from high-risk full advance demands.
+  - Implemented practical Buyer Verification Question generator in simple Bangla.
+  - Deployed `POST /api/v1/analyze` endpoint with error handling for missing keys, quotas, and short/oversized payloads.
+  - Created interactive frontend analyzer dashboard with 1-click test scenarios and side-by-side comparison cards.
+  - Authored comprehensive test suite (17 pytest tests) covering all 10 evaluation criteria.
+- [ ] **Task 03: Multimodal Screenshot OCR & Logistics Parity Verification**
+  - Implement direct image upload and OCR preprocessing for Messenger and WhatsApp screenshots.
+  - Integrate Steadfast, Pathao, and RedX consignment tracking schemas.
+  - Generate digital downloadable "Promise Pass" (tamper-evident PDF/QR token).
 - [ ] **Task 04: Community Signal Registry & DNCRP Dossier Generator**
   - Community crowdsourced report submission and warning lookup.
-  - One-click DNCRP complaint file export for consumer rights disputes.
-- [ ] **Task 05: End-to-End Evaluation & Buildathon Demo Readiness**
-  - Comprehensive integration tests, performance optimization, and final deployment.
+  - One-click DNCRP complaint file export for formal consumer rights dispute filing.
+- [ ] **Task 05: End-to-End Evaluation & Demo Packaging**
+  - Live deployment, demo recording, and submission readiness.

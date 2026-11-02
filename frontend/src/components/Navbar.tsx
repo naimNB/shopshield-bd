@@ -50,9 +50,10 @@ export const Navbar: React.FC = () => {
 
           {/* Nav Links */}
           <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300">
-            <a href="#features" className="hover:text-emerald-400 transition-colors">Features</a>
+            <a href="#analyzer" className="text-emerald-400 font-semibold hover:text-emerald-300 transition-colors">Analyzer</a>
             <a href="#problem-solution" className="hover:text-emerald-400 transition-colors">Why ShopShield</a>
-            <a href="#preview" className="hover:text-emerald-400 transition-colors">Platform Preview</a>
+            <a href="#features" className="hover:text-emerald-400 transition-colors">Features</a>
+            <a href="#preview" className="hover:text-emerald-400 transition-colors">Preview</a>
             <a href="#architecture" className="hover:text-emerald-400 transition-colors">Architecture</a>
             <a
               href="http://localhost:8000/docs"
@@ -107,11 +108,11 @@ export const Navbar: React.FC = () => {
             </a>
 
             <a
-              href="#preview"
+              href="#analyzer"
               className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold shadow-lg shadow-emerald-500/20 transition-all hover:shadow-emerald-500/40"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Launch Assistant</span>
+              <span>Analyze Promises</span>
             </a>
           </div>
 
@@ -138,11 +139,11 @@ export const Navbar: React.FC = () => {
       {isMenuOpen && (
         <div className="md:hidden border-b border-slate-800 bg-navy-950 px-4 pt-2 pb-4 space-y-3">
           <a
-            href="#features"
+            href="#analyzer"
             onClick={() => setIsMenuOpen(false)}
-            className="block text-slate-300 hover:text-emerald-400 py-1"
+            className="block text-emerald-400 font-semibold py-1"
           >
-            Features
+            AI Analyzer
           </a>
           <a
             href="#problem-solution"
@@ -152,11 +153,18 @@ export const Navbar: React.FC = () => {
             Why ShopShield
           </a>
           <a
+            href="#features"
+            onClick={() => setIsMenuOpen(false)}
+            className="block text-slate-300 hover:text-emerald-400 py-1"
+          >
+            Features
+          </a>
+          <a
             href="#preview"
             onClick={() => setIsMenuOpen(false)}
             className="block text-slate-300 hover:text-emerald-400 py-1"
           >
-            Platform Preview
+            Preview
           </a>
           <a
             href="#architecture"

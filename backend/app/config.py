@@ -28,6 +28,12 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
+    # Multimodal AI Engine Configuration
+    GEMINI_API_KEY: Union[str, None] = None
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    AI_REQUEST_TIMEOUT_SECONDS: int = 30
+    MAX_INPUT_TEXT_LENGTH: int = 15000
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

@@ -35,10 +35,10 @@ export const Hero: React.FC = () => {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <a
-              href="#preview"
+              href="#analyzer"
               className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold text-sm shadow-xl shadow-emerald-500/25 transition-all transform hover:-translate-y-0.5"
             >
-              <span>Explore Protection Platform</span>
+              <span>Try AI Promise Analyzer Now</span>
               <ArrowRight className="w-4 h-4" />
             </a>
 
