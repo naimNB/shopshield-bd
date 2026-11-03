@@ -2,6 +2,8 @@
 
 Orchestrates historical web content discovery, claim extraction from archived HTML,
 strict evidence grounding verification, and deterministic temporal change classification.
+Prevents comparing disparate products or store homepages, detects off-domain redirects,
+and distinguishes explicit policy denials from absent information.
 Never asserts seller dishonesty based on normal operational price adjustments or policy updates.
 """
 
@@ -55,7 +57,9 @@ CRITICAL RULES:
 3. Every single extracted field MUST have its exact verbatim quotation in its corresponding '_evidence' field.
 4. If a term (price, return policy, warranty, COD, delivery fee, advance payment) is NOT explicitly mentioned, set its value and its evidence to null.
 5. NEVER invent, extrapolate, or guess missing information.
-6. A return policy or price update is a factual observation, not evidence of fraud.
+6. If the page is a general homepage without a single specific product, set product_name to null.
+7. Distinguish explicit denial (e.g. 'No COD', 'No Returns') from absent information (set cod_available or return_policy_available to false with verbatim evidence).
+8. A return policy or price update is a factual observation, not evidence of fraud.
 
 Fields to extract:
 - product_name: Title of the specific product listed, or null if page is general store/policy terms.
@@ -80,23 +84,61 @@ Fields to extract:
 """
 
 
-def are_products_comparable(prod_a: Optional[str], prod_b: Optional[str]) -> bool:
-    """Determine whether two product titles are sufficiently related to compare product prices."""
-    if not prod_a or not prod_b:
-        return True  # If neither or only one is named, policy comparison is still applicable
-    tokens_a = set(re.findall(r"\w+", prod_a.lower()))
-    tokens_b = set(re.findall(r"\w+", prod_b.lower()))
-    # Remove common filler words
-    stopwords = {"and", "the", "with", "for", "in", "of", "bd", "store", "shop"}
+def are_products_comparable(
+    prod_a: Optional[str],
+    prod_b: Optional[str],
+    snap_a: Optional[HistoricalSnapshotContent] = None,
+    snap_b: Optional[HistoricalSnapshotContent] = None,
+) -> Tuple[bool, str]:
+    """Determine whether two snapshots represent comparable products for price analysis.
+
+    Enforces strict page identity and product name matching:
+    - Rejects homepages being compared as products.
+    - Rejects off-domain redirected snapshots.
+    - Requires verified, substantive product names in both snapshots.
+    """
+    if snap_a and snap_a.is_off_domain_redirect:
+        return False, f"Earlier snapshot redirected off-domain to '{snap_a.redirect_domain}'."
+    if snap_b and snap_b.is_off_domain_redirect:
+        return False, f"Later snapshot redirected off-domain to '{snap_b.redirect_domain}'."
+
+    type_a = snap_a.page_type if snap_a else "general"
+    type_b = snap_b.page_type if snap_b else "general"
+
+    if type_a == "homepage" and type_b == "homepage":
+        return False, "Both snapshots are general store homepages; product price comparison is not applicable to homepage layouts."
+    if type_a == "homepage" or type_b == "homepage":
+        return False, "Cannot compare a general store homepage against a specific product listing."
+    if type_a == "policy_page" or type_b == "policy_page":
+        return False, "Snapshots represent policy or terms pages rather than product listings."
+
+    if not prod_a or not prod_b or not prod_a.strip() or not prod_b.strip():
+        return False, "Product identity could not be verified in one or both snapshots."
+
+    clean_a = prod_a.strip().lower()
+    clean_b = prod_b.strip().lower()
+
+    if clean_a == clean_b:
+        return True, "Product identities are identical."
+
+    tokens_a = set(re.findall(r"\w+", clean_a))
+    tokens_b = set(re.findall(r"\w+", clean_b))
+    stopwords = {"and", "the", "with", "for", "in", "of", "bd", "store", "shop", "original", "official"}
     tokens_a -= stopwords
     tokens_b -= stopwords
+
     if not tokens_a or not tokens_b:
-        return True
+        return False, "Insufficient descriptive product tokens to establish identity."
+
     overlap = tokens_a.intersection(tokens_b)
-    # If they share at least one substantive token or have high Jaccard, consider comparable
-    if overlap:
-        return True
-    return False
+    if not overlap:
+        return False, f"Snapshots represent fundamentally different products ('{prod_a}' vs '{prod_b}')."
+
+    jaccard = len(overlap) / len(tokens_a.union(tokens_b))
+    if jaccard < 0.25 and len(overlap) < 2:
+        return False, f"Product titles have insufficient similarity ('{prod_a}' vs '{prod_b}')."
+
+    return True, "Product identities match sufficiently for comparison."
 
 
 class TemporalComparisonService:
@@ -150,7 +192,7 @@ class TemporalComparisonService:
             )
         except SSRFValidationError:
             raise
-        except (WaybackRateLimitError, WaybackTimeoutError, WaybackSourceUnavailableError) as e:
+        except (WaybackRateLimitError, WaybackTimeoutError, WaybackSourceUnavailableError, WaybackPayloadTooLargeError) as e:
             logger.warning("Historical snapshot discovery failed for %s: %s", clean_domain, str(e))
             return CompareHistoryResponse(
                 status="success",
@@ -161,18 +203,18 @@ class TemporalComparisonService:
                 metadata={"error": str(e)},
             )
 
-        if discovery_status == "NO_ARCHIVES" or (not earlier_meta and not later_meta):
+        if discovery_status in ("NO_ARCHIVES", "NO_PAGE_ARCHIVES") or (not earlier_meta and not later_meta):
+            msg = "No historical HTML captures were found in the archive for this page." if discovery_status == "NO_PAGE_ARCHIVES" else "No historical HTML captures were found in the archive."
             return CompareHistoryResponse(
                 status="success",
                 research_status="INSUFFICIENT_ARCHIVES",
                 target_url=normalized_url,
                 cleaned_domain=clean_domain,
                 coverage_status="NO_ARCHIVES",
-                metadata={"message": "No historical HTML captures were found in the archive."},
+                metadata={"message": msg},
             )
 
         if discovery_status == "SINGLE_SNAPSHOT" or not later_meta:
-            # Only one snapshot exists - cannot compare across time
             single_snap = earlier_meta or later_meta
             content_snap = self._safely_fetch_snapshot(single_snap["timestamp"], single_snap["original"])
             return CompareHistoryResponse(
@@ -208,8 +250,36 @@ class TemporalComparisonService:
         earlier_snap.claims = earlier_claims
         later_snap.claims = later_claims
 
+        # Determine comparability scope
+        is_comparable_prod, prod_reason = are_products_comparable(
+            earlier_claims.product_name,
+            later_claims.product_name,
+            earlier_snap,
+            later_snap,
+        )
+
+        if earlier_snap.is_off_domain_redirect or later_snap.is_off_domain_redirect:
+            comp_scope = "not_comparable"
+            scope_explanation = "One or both historical snapshots redirected to an external domain."
+        elif is_comparable_prod:
+            comp_scope = "product"
+            scope_explanation = f"Comparing product listing: '{earlier_claims.product_name}'."
+        elif earlier_snap.page_type == "policy_page" or later_snap.page_type == "policy_page":
+            comp_scope = "policy"
+            scope_explanation = "Comparing store terms and policy conditions across historical snapshots."
+        else:
+            comp_scope = "domain"
+            scope_explanation = "Comparing store-wide policies across historical snapshots. Product price comparison is disabled for homepage layouts."
+
         # 4. Perform deterministic temporal comparisons
-        comparisons = self.compare_claims(earlier_claims, later_claims, earlier_snap, later_snap)
+        comparisons = self.compare_claims(
+            earlier_claims,
+            later_claims,
+            earlier_snap,
+            later_snap,
+            is_comparable_prod=is_comparable_prod,
+            prod_comp_reason=prod_reason,
+        )
         changed_items = [c for c in comparisons if c.status == TemporalChangeStatus.CHANGED]
         buyer_questions = self.generate_buyer_questions(changed_items, comparisons)
 
@@ -221,6 +291,8 @@ class TemporalComparisonService:
             target_url=normalized_url,
             cleaned_domain=clean_domain,
             coverage_status="DATE_RANGE_VERIFIED",
+            comparison_scope=comp_scope,
+            scope_explanation=scope_explanation,
             earlier_snapshot=earlier_snap,
             later_snapshot=later_snap,
             comparisons=comparisons,
@@ -275,36 +347,16 @@ class TemporalComparisonService:
         source_url: str,
         snapshot: HistoricalSnapshotContent,
     ) -> HistoricalPolicyClaims:
-        """Extract policy terms and strictly ground each field against the extracted visible text."""
-        # Clean text from the HTML snapshot if not already present
-        # In fetch_snapshot_content we already ran safe_extract_text_from_html
-        # To avoid re-fetching, we can re-extract from the original snapshot if raw bytes were retained
-        # But snapshot content object already has extracted_text_chars.
-        # Let's ensure we fetch clean text if needed:
-        clean_text = ""
-        if hasattr(snapshot, "_extracted_text") and getattr(snapshot, "_extracted_text"):
-            clean_text = getattr(snapshot, "_extracted_text")
-        else:
-            # Re-fetch text from provider safely or fallback
-            pass
+        """Extract policy terms and strictly ground each field against the extracted visible text.
 
-        # If clean text is not passed on snapshot, let's fetch clean text
-        if not clean_text:
-            try:
-                with self.content_provider._client_context() as client:
-                    resp = client.get(
-                        f"https://web.archive.org/web/{snapshot.timestamp}id_/{snapshot.snapshot_url.split('/web/' + snapshot.timestamp + '/')[-1]}",
-                        timeout=self.content_provider.timeout,
-                    )
-                    if resp.status_code == 200:
-                        clean_text, _ = safe_extract_text_from_html(resp.content, max_bytes=self.content_provider.max_bytes)
-            except Exception:
-                clean_text = ""
-
+        Enforces a strict budget of maximum 1 Gemini request per snapshot, with zero duplicate
+        network calls to the archive, falling back immediately to the deterministic extractor.
+        """
+        clean_text = snapshot._extracted_text or ""
         if not clean_text or len(clean_text) < 20:
             return HistoricalPolicyClaims(raw_text_snippet="")
 
-        # Try Gemini multimodal/text extraction if client is available
+        # Try Gemini multimodal/text extraction if client is available (strictly 1 attempt budget)
         client = self.client
         extracted: Optional[HistoricalPolicyClaims] = None
         if client:
@@ -315,29 +367,23 @@ class TemporalComparisonService:
                 f"</UNTRUSTED_ARCHIVED_WEBSITE_CONTENT>\n\n"
                 f"Extract structured purchase policies and terms strictly conforming to schema:"
             )
-            for attempt in range(2):
-                try:
-                    response = client.models.generate_content(
-                        model=self.model_name,
-                        contents=[prompt],
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            response_schema=HistoricalPolicyClaims,
-                            temperature=0.0,
-                        ),
-                    )
-                    if response and response.text:
-                        data = json.loads(response.text)
-                        extracted = HistoricalPolicyClaims(**data)
-                        break
-                except Exception as e:
-                    logger.warning("AI extraction from snapshot failed: %s", type(e).__name__)
-                    if attempt == 0:
-                        time.sleep(1.0)
-                        continue
-                    break
+            try:
+                response = client.models.generate_content(
+                    model=self.model_name,
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=HistoricalPolicyClaims,
+                        temperature=0.0,
+                    ),
+                )
+                if response and response.text:
+                    data = json.loads(response.text)
+                    extracted = HistoricalPolicyClaims(**data)
+            except Exception as e:
+                logger.warning("AI extraction from snapshot failed (%s); using deterministic parser", type(e).__name__)
 
-        # Fallback to deterministic regex extractor if AI extraction failed or is unconfigured
+        # Fallback to deterministic regex extractor
         if not extracted:
             extracted = self._rule_based_extract(clean_text)
 
@@ -354,6 +400,11 @@ class TemporalComparisonService:
         """Validate every extracted claim against source text to prevent hallucinations."""
         if not claims:
             return HistoricalPolicyClaims()
+
+        # Product name
+        if claims.product_name:
+            if not verify_evidence_in_text(claims.product_name, source_text):
+                claims.product_name = None
 
         # Price
         if claims.price is not None:
@@ -404,59 +455,122 @@ class TemporalComparisonService:
         return claims
 
     def _rule_based_extract(self, text: str) -> HistoricalPolicyClaims:
-        """Deterministic pattern-based extraction as fallback and offline testing."""
+        """Deterministic pattern-based extraction supporting Bangla, English, and Banglish."""
         claims = HistoricalPolicyClaims()
 
-        # 1. Price pattern: e.g. "Price: 1200 BDT", "৳ 1,200", "1200 Tk"
-        m_price = re.search(r"(?:price|মূল্য|৳|bdt|tk)\s*[:\-]?\s*([0-9,]+(?:\.[0-9]{1,2})?)", text, re.IGNORECASE)
-        if m_price:
-            raw_num = m_price.group(1).replace(",", "")
-            try:
-                val = float(raw_num)
-                if 10.0 <= val <= 10_000_000.0:
-                    claims.price = val
-                    claims.price_evidence = m_price.group(0).strip()
-            except ValueError:
-                pass
+        # 1. Product title extraction
+        m_title = re.search(r"(?:product|item|title|পণ্য|আইটেম)\s*[:\-]\s*([^\n\r,]+)", text, re.IGNORECASE)
+        if m_title:
+            cand = m_title.group(1).strip()
+            if 3 <= len(cand) <= 120:
+                claims.product_name = cand
+        else:
+            lines = [l.strip() for l in text.splitlines() if l.strip()]
+            for line in lines[:8]:
+                if 5 <= len(line) <= 80 and not any(k in line.lower() for k in ("welcome", "home", "search", "menu", "cart", "login", "register", "store header")):
+                    if re.search(r"\b(shirt|t-shirt|shoes|watch|bag|backpack|wallet|phone|laptop|earbuds|cream|oil|soap|shampoo|panjabi|saree|dress|speaker|cover|case)\b", line, re.IGNORECASE):
+                        claims.product_name = line
+                        break
 
-        # 2. Return policy days: e.g. "7 days return", "7 দিনের রিপ্লেসমেন্ট"
-        m_ret = re.search(r"\b([0-9]{1,2})\s*(?:days?|দিনের)\s*(?:return|refund|replacement|রিটার্ন)", text, re.IGNORECASE)
-        if m_ret:
+        # 2. Price pattern: avoid matching delivery fees, advance payments, or discounts
+        for line in text.splitlines():
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if re.search(r"\b(delivery|fee|charge|ডেলিভারি|চার্জ|save|discount|ছাড়|advance|অগ্রিম|কুরিয়ার)\b", line_str, re.IGNORECASE):
+                continue
+            m_price = re.search(r"(?:price|মূল্য|৳|bdt|tk)\s*[:\-]?\s*([0-9,]+(?:\.[0-9]{1,2})?)", line_str, re.IGNORECASE)
+            if m_price:
+                raw_num = m_price.group(1).replace(",", "")
+                try:
+                    val = float(raw_num)
+                    if 10.0 <= val <= 10_000_000.0:
+                        claims.price = val
+                        claims.price_evidence = m_price.group(0).strip()
+                        break
+                except ValueError:
+                    pass
+
+        # 3. Cash on Delivery (COD) - Check denial phrases FIRST
+        COD_DENIAL_REGEX = re.compile(
+            r"(?:no\s+cod|no\s+cash\s+on\s+delivery|cash\s+on\s+delivery\s+(?:is\s+)?(?:not\s+available|unavailable)|cod\s+(?:is\s+)?unavailable|ক্যাশ\s*অন\s*ডেলিভারি[^\n\r।.;!?]{0,35}(?:নেই|না|নয়|নয়|বন্ধ|হবে\s*না))",
+            re.IGNORECASE,
+        )
+        COD_POSITIVE_REGEX = re.compile(
+            r"(?:cash\s+on\s+delivery\s+(?:is\s+)?available|cod\s+available|ক্যাশ\s*অন\s*ডেলিভারি[^\n\r।.;!?]{0,35}(?:হবে|আছে|পাবেন|সুবিধা|প্রযোজ্য))",
+            re.IGNORECASE,
+        )
+
+        m_no_cod = COD_DENIAL_REGEX.search(text)
+        m_pos_cod = COD_POSITIVE_REGEX.search(text)
+
+        if m_no_cod:
+            claims.cod_available = False
+            claims.cod_evidence = m_no_cod.group(0).strip()
+        elif m_pos_cod:
+            claims.cod_available = True
+            claims.cod_evidence = m_pos_cod.group(0).strip()
+        elif re.search(r"\b(cash on delivery|payment on delivery|pay cash|ক্যাশ অন ডেলিভারি)\b", text, re.IGNORECASE):
+            m_gen = re.search(r"\b(cash on delivery|payment on delivery|pay cash|ক্যাশ অন ডেলিভারি)\b", text, re.IGNORECASE)
+            start_pos = max(0, m_gen.start() - 25)
+            context = text[start_pos:m_gen.start()].lower()
+            if any(neg in context for neg in ("no ", "not ", "don't ", "dont ", "নেই", "না ")):
+                claims.cod_available = False
+            else:
+                claims.cod_available = True
+            claims.cod_evidence = m_gen.group(0).strip()
+
+        # 4. Return policy days / denial
+        RETURN_DENIAL_REGEX = re.compile(
+            r"(?:no\s+returns?|non-refundable|no\s+refunds?|all\s+sales\s+(?:are\s+)?final|রিটার্ন[^\n\r।.;!?]{0,35}(?:প্রযোজ্য\s*[নন][য়য়]|হবে\s*না|নেই))",
+            re.IGNORECASE,
+        )
+        RETURN_DAYS_REGEX = re.compile(
+            r"\b([0-9]{1,2})\s*(?:days?|দিনের)\s*(?:return|refund|replacement|রিটার্ন|রিপ্লেসমেন্ট)\b",
+            re.IGNORECASE,
+        )
+
+        m_no_ret = RETURN_DENIAL_REGEX.search(text)
+        m_ret_days = RETURN_DAYS_REGEX.search(text)
+
+        if m_no_ret:
+            claims.return_policy_available = False
+            claims.return_days = None
+            claims.return_policy_terms = "No returns accepted"
+            claims.return_policy_evidence = m_no_ret.group(0).strip()
+        elif m_ret_days:
             try:
-                claims.return_days = int(m_ret.group(1))
+                claims.return_days = int(m_ret_days.group(1))
                 claims.return_policy_available = True
                 claims.return_policy_terms = f"{claims.return_days} days return policy"
-                claims.return_policy_evidence = m_ret.group(0).strip()
+                claims.return_policy_evidence = m_ret_days.group(0).strip()
             except ValueError:
                 pass
-        elif re.search(r"\b(no returns?|non-refundable|রিটার্ন প্রযোজ্য নয়)\b", text, re.IGNORECASE):
-            m_no = re.search(r"\b(no returns?|non-refundable|রিটার্ন প্রযোজ্য নয়)\b", text, re.IGNORECASE)
-            claims.return_policy_available = False
-            claims.return_policy_terms = "No returns accepted"
-            claims.return_policy_evidence = m_no.group(0).strip() if m_no else None
 
-        # 3. Cash on Delivery: e.g. "Cash on delivery available", "ক্যাশ অন ডেলিভারি"
-        if re.search(r"\b(cash on delivery|ক্যাশ অন ডেলিভারি|cod available)\b", text, re.IGNORECASE):
-            m_cod = re.search(r"\b(cash on delivery|ক্যাশ অন ডেলিভারি|cod available)\b", text, re.IGNORECASE)
-            claims.cod_available = True
-            claims.cod_evidence = m_cod.group(0).strip() if m_cod else None
-        elif re.search(r"\b(no cod|cod not available|ক্যাশ অন ডেলিভারি নেই)\b", text, re.IGNORECASE):
-            m_nocod = re.search(r"\b(no cod|cod not available|ক্যাশ অন ডেলিভারি নেই)\b", text, re.IGNORECASE)
-            claims.cod_available = False
-            claims.cod_evidence = m_nocod.group(0).strip() if m_nocod else None
-
-        # 4. Advance payment: e.g. "Advance 150 BDT", "অগ্রিম ডেলিভারি চার্জ"
-        m_adv = re.search(r"(?:advance|অগ্রিম)\s*([0-9]{2,4})?\s*(?:bdt|tk|টাকা)?", text, re.IGNORECASE)
-        if m_adv and (m_adv.group(1) or "অগ্রিম" in m_adv.group(0)):
-            claims.advance_payment_required = True
-            if m_adv.group(1):
+        # 5. Advance payment
+        ADVANCE_DENIAL_REGEX = re.compile(
+            r"(?:^|[\s(])(no\s+advance|advance\s+not\s+required|অগ্রিম\s*(?:প্রযোজ্য\s*[নন][য়য়]|নেওয়া\s*হয়\s*না|নেই))(?:$|[\s)!,.;।])",
+            re.IGNORECASE,
+        )
+        m_no_adv = ADVANCE_DENIAL_REGEX.search(text)
+        if m_no_adv:
+            claims.advance_payment_required = False
+            claims.advance_payment_evidence = m_no_adv.group(1).strip()
+        else:
+            m_adv = re.search(r"(?:advance|অগ্রিম)(?:[^\d\n\r]{0,35})([0-9]{2,4})\s*(?:bdt|tk|টাকা)?", text, re.IGNORECASE)
+            if m_adv:
+                claims.advance_payment_required = True
                 try:
                     claims.advance_payment_amount = float(m_adv.group(1))
                 except ValueError:
                     pass
-            claims.advance_payment_evidence = m_adv.group(0).strip()
+                claims.advance_payment_evidence = m_adv.group(0).strip()
+            elif re.search(r"\b(advance|অগ্রিম)\b", text, re.IGNORECASE):
+                m_adv_word = re.search(r"\b(advance|অগ্রিম)\b", text, re.IGNORECASE)
+                claims.advance_payment_required = True
+                claims.advance_payment_evidence = m_adv_word.group(0).strip()
 
-        # 5. Delivery fee: e.g. "Delivery fee: 60 BDT", "ডেলিভারি চার্জ ৬০ টাকা"
+        # 6. Delivery fee
         m_del = re.search(r"(?:delivery|ডেলিভারি)\s*(?:fee|charge|চার্জ)?\s*[:\-]?\s*([0-9]{2,4})", text, re.IGNORECASE)
         if m_del:
             try:
@@ -465,7 +579,7 @@ class TemporalComparisonService:
             except ValueError:
                 pass
 
-        # 6. Warranty: e.g. "1 Year Warranty", "৬ মাসের ওয়ারেন্টি"
+        # 7. Warranty
         m_war = re.search(r"([0-9]{1,2})\s*(?:year|years|month|months|বছর|মাস)\s*(?:warranty|ওয়ারেন্টি)", text, re.IGNORECASE)
         if m_war:
             claims.warranty_available = True
@@ -480,6 +594,8 @@ class TemporalComparisonService:
         later: HistoricalPolicyClaims,
         earlier_snap: HistoricalSnapshotContent,
         later_snap: HistoricalSnapshotContent,
+        is_comparable_prod: Optional[bool] = None,
+        prod_comp_reason: Optional[str] = None,
     ) -> List[TemporalFieldComparison]:
         """Perform deterministic comparisons across standard e-commerce purchase fields."""
         comparisons: List[TemporalFieldComparison] = []
@@ -489,13 +605,18 @@ class TemporalComparisonService:
         earlier_url = earlier_snap.snapshot_url
         later_url = later_snap.snapshot_url
 
-        # Check date chronological order: if earlier date is after later date, mark NEEDS_REVIEW
-        is_date_inverted = False
-        if earlier_snap.timestamp > later_snap.timestamp:
-            is_date_inverted = True
+        is_date_inverted = earlier_snap.timestamp > later_snap.timestamp
+        has_off_domain = earlier_snap.is_off_domain_redirect or later_snap.is_off_domain_redirect
 
-        # Check product comparability
-        comparable_products = are_products_comparable(earlier.product_name, later.product_name)
+        if is_comparable_prod is None:
+            is_comparable_prod, prod_comp_reason = are_products_comparable(
+                earlier.product_name,
+                later.product_name,
+                earlier_snap,
+                later_snap,
+            )
+        elif not prod_comp_reason:
+            prod_comp_reason = "Product comparability verified." if is_comparable_prod else "Snapshots represent distinct pages or general store homepages."
 
         # 1. Return Policy Comparison
         if is_date_inverted:
@@ -511,8 +632,20 @@ class TemporalComparisonService:
                     limitations="Requires manual review.",
                 )
             )
+        elif has_off_domain:
+            comparisons.append(
+                TemporalFieldComparison(
+                    field="return_policy",
+                    field_label="Return & Refund Policy Window",
+                    status=TemporalChangeStatus.NOT_COMPARABLE,
+                    earlier_date=earlier_date,
+                    later_date=later_date,
+                    retrieval_timestamp=now_iso,
+                    explanation="Archived snapshot redirected to an external domain. Terms belong to an unrelated website.",
+                    limitations="Domain ownership change or external redirect.",
+                )
+            )
         elif earlier.return_policy_available is not None and later.return_policy_available is not None:
-            # Check return days first
             if earlier.return_days is not None and later.return_days is not None:
                 if earlier.return_days != later.return_days:
                     comparisons.append(
@@ -607,7 +740,20 @@ class TemporalComparisonService:
             )
 
         # 2. Cash on Delivery (COD) Comparison
-        if earlier.cod_available is not None and later.cod_available is not None:
+        if has_off_domain:
+            comparisons.append(
+                TemporalFieldComparison(
+                    field="cod_availability",
+                    field_label="Cash on Delivery (COD)",
+                    status=TemporalChangeStatus.NOT_COMPARABLE,
+                    earlier_date=earlier_date,
+                    later_date=later_date,
+                    retrieval_timestamp=now_iso,
+                    explanation="Archived snapshot redirected to an external domain.",
+                    limitations="External redirect detected.",
+                )
+            )
+        elif earlier.cod_available is not None and later.cod_available is not None:
             if earlier.cod_available != later.cod_available:
                 prev_cod = "Available" if earlier.cod_available else "Not Available"
                 new_cod = "Available" if later.cod_available else "Not Available"
@@ -664,7 +810,7 @@ class TemporalComparisonService:
             )
 
         # 3. Product Price Comparison
-        if not comparable_products:
+        if not is_comparable_prod:
             comparisons.append(
                 TemporalFieldComparison(
                     field="price",
@@ -673,8 +819,8 @@ class TemporalComparisonService:
                     earlier_date=earlier_date,
                     later_date=later_date,
                     retrieval_timestamp=now_iso,
-                    explanation=f"Archived snapshots represent distinct products ('{earlier.product_name}' vs '{later.product_name}'). Price changes cannot be evaluated across different items.",
-                    limitations="Page content changed to an unrelated product.",
+                    explanation=prod_comp_reason or "Snapshots represent distinct pages or general store homepages.",
+                    limitations="Product prices cannot be compared across disparate products or store homepages.",
                 )
             )
         elif earlier.price is not None and later.price is not None:
@@ -731,7 +877,20 @@ class TemporalComparisonService:
             )
 
         # 4. Advance Payment Comparison
-        if earlier.advance_payment_required is not None and later.advance_payment_required is not None:
+        if has_off_domain:
+            comparisons.append(
+                TemporalFieldComparison(
+                    field="advance_payment",
+                    field_label="Advance Payment Requirement",
+                    status=TemporalChangeStatus.NOT_COMPARABLE,
+                    earlier_date=earlier_date,
+                    later_date=later_date,
+                    retrieval_timestamp=now_iso,
+                    explanation="Archived snapshot redirected to an external domain.",
+                    limitations="External redirect detected.",
+                )
+            )
+        elif earlier.advance_payment_required is not None and later.advance_payment_required is not None:
             if earlier.advance_payment_required != later.advance_payment_required:
                 prev_adv = "Required" if earlier.advance_payment_required else "Not Required"
                 new_adv = "Required" if later.advance_payment_required else "Not Required"
@@ -788,7 +947,20 @@ class TemporalComparisonService:
             )
 
         # 5. Delivery Fee Comparison
-        if earlier.delivery_charge is not None and later.delivery_charge is not None:
+        if has_off_domain:
+            comparisons.append(
+                TemporalFieldComparison(
+                    field="delivery_charge",
+                    field_label="Delivery Fee",
+                    status=TemporalChangeStatus.NOT_COMPARABLE,
+                    earlier_date=earlier_date,
+                    later_date=later_date,
+                    retrieval_timestamp=now_iso,
+                    explanation="Archived snapshot redirected to an external domain.",
+                    limitations="External redirect detected.",
+                )
+            )
+        elif earlier.delivery_charge is not None and later.delivery_charge is not None:
             if earlier.delivery_charge != later.delivery_charge:
                 comparisons.append(
                     TemporalFieldComparison(
@@ -842,7 +1014,20 @@ class TemporalComparisonService:
             )
 
         # 6. Warranty Terms Comparison
-        if earlier.warranty_terms is not None and later.warranty_terms is not None:
+        if has_off_domain:
+            comparisons.append(
+                TemporalFieldComparison(
+                    field="warranty",
+                    field_label="Warranty Terms & Period",
+                    status=TemporalChangeStatus.NOT_COMPARABLE,
+                    earlier_date=earlier_date,
+                    later_date=later_date,
+                    retrieval_timestamp=now_iso,
+                    explanation="Archived snapshot redirected to an external domain.",
+                    limitations="External redirect detected.",
+                )
+            )
+        elif earlier.warranty_terms is not None and later.warranty_terms is not None:
             if earlier.warranty_terms.lower() != later.warranty_terms.lower():
                 comparisons.append(
                     TemporalFieldComparison(
@@ -913,7 +1098,7 @@ class TemporalComparisonService:
                 )
             elif item.field == "cod_availability":
                 questions.append(
-                    f"পূর্বে ক্যাশ অন ডেলিভারি (COD) পলিসি ছিল '{item.previous_value}', যা বর্তমানে '{item.new_value}' দেখাচ্ছে। "
+                    f"পূর্বে ক্যাশ অন ডেলিভারি (COD) পলিসি ছিল '{item.previous_value}', যা পরবর্তীতে '{item.new_value}' দেখাচ্ছে। "
                     "কোনো ব্যক্তিগত নম্বরে অযাচিত অগ্রিম সম্পূর্ণ টাকা পাঠানোর পূর্বে সতর্কতা অবলম্বন করুন।"
                 )
             elif item.field == "price":
@@ -923,12 +1108,12 @@ class TemporalComparisonService:
                 )
             elif item.field == "advance_payment":
                 questions.append(
-                    f"অগ্রিম পেমেন্টের শর্ত পূর্বে '{item.previous_value}' ছিল, বর্তমানে '{item.new_value}'। "
+                    f"অগ্রিম পেমেন্টের শর্ত পূর্বে '{item.previous_value}' ছিল, পরবর্তীতে '{item.new_value}'। "
                     "কুরিয়ার চার্জের বাইরে কোনো অতিরিক্ত অগ্রিম পরিশোধ না করার পরামর্শ দেওয়া হচ্ছে।"
                 )
             elif item.field == "warranty":
                 questions.append(
-                    f"ওয়ারেন্টি শর্তাবলী পূর্বে ছিল '{item.previous_value}', বর্তমানে '{item.new_value}'। "
+                    f"ওয়ারেন্টি শর্তাবলী পূর্বে ছিল '{item.previous_value}', পরবর্তীতে '{item.new_value}'। "
                     "পণ্যটির সাথে অফিসিয়াল ওয়ারেন্টি কার্ড প্রদান করা হবে কি না নিশ্চিত হোন।"
                 )
 

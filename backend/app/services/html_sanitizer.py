@@ -22,17 +22,14 @@ DEFAULT_MAX_EXTRACTED_CHARS = 40_000   # 40k characters of visible text
 class SafeHTMLTextStripper(HTMLParser):
     """Event-driven parser that extracts only visible human-readable text."""
 
-    # Tags whose children must be completely discarded
-    DISCARD_TAGS = {
+    # Container tags whose child contents must be completely discarded
+    DISCARD_CONTAINER_TAGS = {
         "script",
         "style",
         "noscript",
         "svg",
         "canvas",
         "iframe",
-        "head",
-        "meta",
-        "link",
         "template",
         "object",
         "embed",
@@ -54,14 +51,17 @@ class SafeHTMLTextStripper(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[Tuple[str, str | None]]):
         tag_lower = tag.lower()
-        if tag_lower in self.DISCARD_TAGS:
+        if tag_lower in self.DISCARD_CONTAINER_TAGS:
             self.discard_depth += 1
+        elif tag_lower == "body":
+            # Safety reset for unclosed tags in head
+            self.discard_depth = 0
         elif tag_lower in self.BLOCK_TAGS and self.current_length < self.max_chars:
             self.text_chunks.append("\n")
 
     def handle_endtag(self, tag: str):
         tag_lower = tag.lower()
-        if tag_lower in self.DISCARD_TAGS:
+        if tag_lower in self.DISCARD_CONTAINER_TAGS:
             if self.discard_depth > 0:
                 self.discard_depth -= 1
         elif tag_lower in self.BLOCK_TAGS and self.current_length < self.max_chars:

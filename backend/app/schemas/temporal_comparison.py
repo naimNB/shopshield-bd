@@ -56,6 +56,11 @@ class HistoricalSnapshotContent(BaseModel):
     extracted_text_chars: int = Field(0, description="Character count of cleaned visible text")
     claims: Optional[HistoricalPolicyClaims] = Field(None, description="Extracted and grounded policy claims")
     fetch_status: str = Field("FETCHED", description="Retrieval status: FETCHED, ARCHIVE_UNAVAILABLE, CONTENT_TOO_LARGE, TIMEOUT")
+    page_type: str = Field("general", description="Page classification: 'homepage', 'product_page', 'policy_page', 'general'")
+    final_url: Optional[str] = Field(None, description="Final resolved URL after following internal archive redirects")
+    redirect_domain: Optional[str] = Field(None, description="Hostname of final destination if redirected")
+    is_off_domain_redirect: bool = Field(False, description="True if snapshot redirected to an external or unrelated domain")
+    content_type: Optional[str] = Field("text/html", description="MIME type returned by archive")
     _extracted_text: Optional[str] = PrivateAttr(default=None)
 
 
@@ -92,6 +97,8 @@ class CompareHistoryResponse(BaseModel):
     target_url: str = Field(..., description="Fully normalized target URL analyzed")
     cleaned_domain: str = Field(..., description="Sanitized base domain")
     coverage_status: str = Field(..., description="Historical archive coverage grade")
+    comparison_scope: str = Field("domain", description="Scope of comparison: 'product', 'policy', 'domain', 'not_comparable'")
+    scope_explanation: Optional[str] = Field(None, description="Explanation of comparability level and restrictions")
     earlier_snapshot: Optional[HistoricalSnapshotContent] = Field(None, description="Earlier snapshot content and claims")
     later_snapshot: Optional[HistoricalSnapshotContent] = Field(None, description="Later snapshot content and claims")
     comparisons: List[TemporalFieldComparison] = Field(default_factory=list, description="List of comparative findings by field")
