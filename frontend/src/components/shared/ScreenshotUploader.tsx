@@ -1,17 +1,33 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, X, Image as ImageIcon, Sparkles, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Upload,
+  X,
+  Image as ImageIcon,
+  Sparkles,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  PlusCircle,
+  RotateCcw,
+} from 'lucide-react';
 import { api } from '../../services/api';
 
-interface ScreenshotUploaderProps {
+export interface ScreenshotUploaderProps {
   label: string;
   helperText?: string;
-  onExtractedText: (text: string) => void;
+  sourceType?: 'advertisement' | 'seller_chat';
+  existingText?: string;
+  onConfirmText?: (text: string, mode: 'replace' | 'append') => void;
+  onExtractedText?: (text: string) => void;
   className?: string;
 }
 
 export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
   label,
   helperText = 'ফেসবুক পোস্ট, চ্যাট বা রসিদের স্ক্রিনশট আপলোড করুন (PNG, JPG, WebP - সর্বোচ্চ ৫ মেগাবাইট)',
+  sourceType = 'advertisement',
+  existingText = '',
+  onConfirmText,
   onExtractedText,
   className = '',
 }) => {
@@ -19,9 +35,10 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [extractedSnippet, setExtractedSnippet] = useState<string | null>(null);
+  const [extractedText, setExtractedText] = useState<string | null>(null);
   const [editableText, setEditableText] = useState<string>('');
   const [isApplied, setIsApplied] = useState(false);
+  const [appliedMode, setAppliedMode] = useState<'replace' | 'append' | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -56,9 +73,10 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
 
     setFile(selectedFile);
     setError(null);
-    setExtractedSnippet(null);
+    setExtractedText(null);
     setEditableText('');
     setIsApplied(false);
+    setAppliedMode(null);
 
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     const url = URL.createObjectURL(selectedFile);
@@ -78,13 +96,18 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
 
     setLoading(true);
     setError(null);
+    setIsApplied(false);
+    setAppliedMode(null);
+
     try {
-      const result = await api.extractScreenshot(imageFile, { signal: controller.signal });
+      const result = await api.extractScreenshot(imageFile, sourceType, { signal: controller.signal });
       if (currentId !== requestIdRef.current) return;
-      setExtractedSnippet(result.extracted_text);
-      setEditableText(result.extracted_text);
-      onExtractedText(result.extracted_text);
-      setIsApplied(true);
+      const text = result.extracted_text || '';
+      setExtractedText(text);
+      setEditableText(text);
+      if (!text.trim()) {
+        setError('স্ক্রিনশটে কোনো দৃশ্যমান টেক্সট সনাক্ত হয়নি। পরিষ্কার ছবি দিয়ে পুনরায় চেষ্টা করুন।');
+      }
     } catch (err: unknown) {
       if (currentId !== requestIdRef.current) return;
       if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
@@ -106,17 +129,31 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
     setFile(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
-    setExtractedSnippet(null);
+    setExtractedText(null);
     setEditableText('');
     setError(null);
     setIsApplied(false);
+    setAppliedMode(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleApplyEditedText = () => {
-    onExtractedText(editableText);
+  const handleApply = (mode: 'replace' | 'append') => {
+    if (!editableText.trim()) return;
+
+    if (onConfirmText) {
+      onConfirmText(editableText, mode);
+    } else if (onExtractedText) {
+      if (mode === 'append' && existingText.trim()) {
+        onExtractedText(existingText.trim() + '\n\n' + editableText.trim());
+      } else {
+        onExtractedText(editableText.trim());
+      }
+    }
     setIsApplied(true);
+    setAppliedMode(mode);
   };
+
+  const hasExistingText = Boolean(existingText && existingText.trim().length > 0);
 
   return (
     <div className={`space-y-2.5 ${className}`}>
@@ -176,6 +213,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
         </div>
       ) : (
         <div className="rounded-xl border border-slate-800 bg-[#0a1224] p-3 sm:p-3.5 space-y-3">
+          {/* Header Preview Bar */}
           <div className="flex items-center gap-3">
             {previewUrl && (
               <img
@@ -196,9 +234,11 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                 </div>
               )}
               {isApplied && !loading && (
-                <div className="flex items-center gap-1 text-xs text-teal-300 mt-1">
+                <div className="flex items-center gap-1 text-xs text-teal-300 mt-1 font-sans">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                  <span>টেক্সট ইনপুটে যুক্ত হয়েছে</span>
+                  <span>
+                    টেক্সট সফলভাবে ইনপুটে {appliedMode === 'append' ? 'শেষে যুক্ত' : 'প্রতিস্থাপন'} করা হয়েছে
+                  </span>
                 </div>
               )}
             </div>
@@ -225,40 +265,84 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
             </div>
           </div>
 
+          {/* Error Message */}
           {error && (
-            <div role="alert" aria-live="assertive" className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>{error}</span>
+            <div role="alert" aria-live="assertive" className="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                <span>{error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => performOcr(file)}
+                className="text-rose-200 hover:text-white underline font-medium shrink-0 ml-2"
+              >
+                পুনরায় চেষ্টা করুন
+              </button>
             </div>
           )}
 
-          {/* Editable OCR text preview with confirm-before-analysis button */}
-          {extractedSnippet && (
+          {/* Editable OCR Text Preview & Confirmation Actions */}
+          {extractedText !== null && (
             <div className="space-y-2 pt-2 border-t border-slate-800">
               <div className="flex items-center justify-between text-xs text-slate-300">
                 <span className="flex items-center gap-1 font-mono text-[11px] text-teal-300">
                   <Sparkles className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                  <span>OCR এক্সট্রাক্ট করা টেক্সট (প্রয়োজনে সংশোধন করুন):</span>
+                  <span>OCR এক্সট্রাক্ট করা টেক্সট ({editableText.length} অক্ষর):</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={handleApplyEditedText}
-                  className="text-teal-400 hover:text-teal-300 font-bold underline text-xs focus-visible:ring-2 focus-visible:ring-teal-400 rounded px-1"
-                >
-                  ইনপুটে প্রয়োগ করুন
-                </button>
+                <span className="text-[11px] text-slate-400 font-sans">
+                  প্রয়োজনে সম্পাদনা করুন
+                </span>
               </div>
+
               <textarea
                 value={editableText}
                 onChange={(e) => {
                   setEditableText(e.target.value);
                   setIsApplied(false);
+                  setAppliedMode(null);
                 }}
                 rows={3}
                 aria-label="OCR থেকে প্রাপ্ত টেক্সট সম্পাদনা করুন"
-                className="w-full text-xs font-mono bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-teal-500 focus-visible:ring-2 focus-visible:ring-teal-400"
+                className="w-full text-xs font-mono bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-teal-500 focus-visible:ring-2 focus-visible:ring-teal-400 leading-relaxed"
                 placeholder="এক্সট্রাক্ট করা টেক্সট..."
               />
+
+              {/* Confirmation Buttons */}
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                {hasExistingText ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleApply('append')}
+                      disabled={!editableText.trim()}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-teal-200 border border-slate-700 text-xs font-semibold transition-colors flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40 min-h-[36px]"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>শেষে যুক্ত করুন (Append)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApply('replace')}
+                      disabled={!editableText.trim()}
+                      className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40 min-h-[36px]"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>প্রতিস্থাপন করুন (Replace)</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleApply('replace')}
+                    disabled={!editableText.trim()}
+                    className="px-4 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40 min-h-[36px]"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>কনফার্ম ও ইনপুটে যোগ করুন</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>

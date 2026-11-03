@@ -31,8 +31,8 @@ class Settings(BaseSettings):
 
     # Multimodal AI Engine Configuration
     GEMINI_API_KEY: Union[str, None] = None
-    GEMINI_MODEL: str = "gemini-3.5-flash"
-    AI_REQUEST_TIMEOUT_SECONDS: int = 50
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite"
+    AI_REQUEST_TIMEOUT_SECONDS: int = 25
     MAX_INPUT_TEXT_LENGTH: int = 15000
     MAX_IMAGE_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB
     ALLOWED_IMAGE_TYPES: List[str] = ["image/png", "image/jpeg", "image/webp", "image/jpg"]

@@ -123,9 +123,14 @@ export const api = {
    * Multimodal Gemini OCR for image extraction.
    * Extracts text from advertisements, seller chat screenshots, or receipts.
    */
-  async extractScreenshot(file: File, options?: RequestOptions): Promise<ScreenshotExtractionResponse> {
+  async extractScreenshot(
+    file: File,
+    sourceType: 'advertisement' | 'seller_chat' = 'advertisement',
+    options?: RequestOptions
+  ): Promise<ScreenshotExtractionResponse> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('source_type', sourceType);
 
     const res = await fetchWithTimeout(`${API_BASE_URL}/api/v1/extract-screenshot`, {
       method: 'POST',

@@ -168,9 +168,14 @@ class ScreenshotExtractorService:
 
         client = self.client
         models_to_try = [self.model_name]
-        fallback_model = "gemini-3.5-flash-lite" if self.model_name != "gemini-3.5-flash-lite" else "gemini-3.5-flash"
-        if fallback_model not in models_to_try:
-            models_to_try.append(fallback_model)
+        candidate_fallbacks = [
+            "gemini-3.1-flash-lite",
+            "gemini-3-flash-preview",
+            "gemini-3.5-flash-lite",
+        ]
+        for candidate in candidate_fallbacks:
+            if candidate not in models_to_try:
+                models_to_try.append(candidate)
 
         response = None
         last_error = None

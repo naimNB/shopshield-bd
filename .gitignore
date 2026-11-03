@@ -72,8 +72,8 @@ service-account*.json
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs & Artifacts
 logs/
 *.log
 .vercel
-.env*
+artifacts/

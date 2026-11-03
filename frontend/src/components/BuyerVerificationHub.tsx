@@ -1,66 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Sparkles,
-  GitCompare,
-  History,
-  Clock,
-  ShieldCheck,
-  CheckCircle2,
-} from 'lucide-react';
 import { AdQuickCheckView } from './workflows/AdQuickCheckView';
 import { PurchasePromiseAnalyzer } from './PurchasePromiseAnalyzer';
 import { SellerHistoryIntelligence } from './SellerHistoryIntelligence';
-import { HistoricalComparisonView } from './workflows/HistoricalComparisonView';
 
-export type WorkflowTab = 'ad-check' | 'ad-vs-chat' | 'seller-history' | 'historical-comparison';
+export type WorkflowTab = 'ad-check' | 'ad-vs-chat' | 'seller-history';
 
-interface WorkflowMeta {
+interface ChoiceMeta {
   id: WorkflowTab;
-  step: string;
-  titleBn: string;
-  titleEn: string;
-  badge: string;
-  descriptionBn: string;
-  icon: React.FC<{ className?: string }>;
+  label: string;
 }
 
-const WORKFLOWS: WorkflowMeta[] = [
-  {
-    id: 'ad-check',
-    step: 'ধাপ ১',
-    titleBn: 'বিজ্ঞাপন দ্রুত যাচাই',
-    titleEn: 'Ad Quick Check',
-    badge: 'চ্যাট শুরুর পূর্বে',
-    descriptionBn: 'বিজ্ঞাপনের অসম্পূর্ণ শর্ত, অদৃশ্য ডেলিভারি ফি ও অগ্রিম পেমেন্টের ঝুঁকি যাচাই',
-    icon: Sparkles,
-  },
-  {
-    id: 'ad-vs-chat',
-    step: 'ধাপ ২',
-    titleBn: 'প্রতিশ্রুতি বনাম চ্যাট',
-    titleEn: 'Promise Cross-Check',
-    badge: 'ইনবক্স চ্যাট যাচাই',
-    descriptionBn: 'বিজ্ঞাপনে দেওয়া প্রতিশ্রুতির সাথে বিক্রেতার ইনবক্স চ্যাটের অমিল ও অসঙ্গতি ধরা',
-    icon: GitCompare,
-  },
-  {
-    id: 'seller-history',
-    step: 'ধাপ ৩',
-    titleBn: 'সেলার ব্যাকগ্রাউন্ড',
-    titleEn: 'Seller History',
-    badge: 'পেজ ও ডোমেইন রেকর্ড',
-    descriptionBn: 'ফেসবুক পেজ ট্রান্সপারেন্সি ও ইন্টারনেট আর্কাইভ থেকে নির্ভরযোগ্য ব্যাকগ্রাউন্ড তথ্য',
-    icon: History,
-  },
-  {
-    id: 'historical-comparison',
-    step: 'ধাপ ৪',
-    titleBn: 'নীতিমালা পরিবর্তন',
-    titleEn: 'Policy Evolution',
-    badge: 'আর্কাইভ স্ন্যাপশট',
-    descriptionBn: 'সময়ের সাথে সাথে ওয়েবসাইটের রিটার্ন পলিসি, ওয়ারেন্টি বা মূল্যের পরিবর্তন ট্র্যাকিং',
-    icon: Clock,
-  },
+const CHOICES: ChoiceMeta[] = [
+  { id: 'ad-check', label: 'বিজ্ঞাপন যাচাই' },
+  { id: 'ad-vs-chat', label: 'বিজ্ঞাপন ও চ্যাট মিলিয়ে দেখুন' },
+  { id: 'seller-history', label: 'বিক্রেতার ইতিহাস যাচাই' },
 ];
 
 export const BuyerVerificationHub: React.FC = () => {
@@ -74,10 +27,14 @@ export const BuyerVerificationHub: React.FC = () => {
         setActiveTab('ad-check');
       } else if (hash === '#analyzer' || hash === '#ad-vs-chat' || hash === '#chat') {
         setActiveTab('ad-vs-chat');
-      } else if (hash === '#seller-history' || hash === '#history') {
+      } else if (
+        hash === '#seller-history' ||
+        hash === '#history' ||
+        hash === '#compare' ||
+        hash === '#historical-comparison' ||
+        hash === '#policy-evolution'
+      ) {
         setActiveTab('seller-history');
-      } else if (hash === '#compare' || hash === '#policy-evolution') {
-        setActiveTab('historical-comparison');
       }
     };
 
@@ -86,119 +43,74 @@ export const BuyerVerificationHub: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
 
+  const handleSelectTab = (id: WorkflowTab) => {
+    setActiveTab(id);
+    window.location.hash = id;
+  };
+
   const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
     let targetIndex = -1;
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
-      targetIndex = (index + 1) % WORKFLOWS.length;
+      targetIndex = (index + 1) % CHOICES.length;
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       e.preventDefault();
-      targetIndex = (index - 1 + WORKFLOWS.length) % WORKFLOWS.length;
+      targetIndex = (index - 1 + CHOICES.length) % CHOICES.length;
     } else if (e.key === 'Home') {
       e.preventDefault();
       targetIndex = 0;
     } else if (e.key === 'End') {
       e.preventDefault();
-      targetIndex = WORKFLOWS.length - 1;
+      targetIndex = CHOICES.length - 1;
     }
 
     if (targetIndex !== -1) {
-      const nextTab = WORKFLOWS[targetIndex];
-      setActiveTab(nextTab.id);
-      window.location.hash = nextTab.id;
-      const el = document.getElementById(`tab-${nextTab.id}`);
+      const nextChoice = CHOICES[targetIndex];
+      handleSelectTab(nextChoice.id);
+      const el = document.getElementById(`tab-${nextChoice.id}`);
       el?.focus();
     }
   };
 
   return (
-    <section id="analyzer" className="py-10 sm:py-14 bg-[#070c18] border-t border-slate-800/80">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
-        {/* Hub Header */}
-        <div className="text-center max-w-3xl mx-auto space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-300 text-xs font-semibold">
-            <ShieldCheck className="w-4 h-4 text-teal-400" aria-hidden="true" />
-            <span>ভোক্তা যাচাইকরণ কেন্দ্র • ৪টি স্বতন্ত্র প্রমাণ পদ্ধতি</span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-sans">
-            প্রমাণভিত্তিক যাচাইকরণ প্যানেল
+    <section id="analyzer" className="py-12 sm:py-16 bg-[#070c18] border-t border-slate-800/80">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-8">
+        {/* Simple Question Header */}
+        <div className="text-center max-w-xl mx-auto space-y-2">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-sans tracking-tight">
+            আপনি কী যাচাই করতে চান?
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 leading-relaxed font-sans max-w-2xl mx-auto">
-            আপনার বর্তমান কেনাকাটার পর্যায় অনুযায়ী নিচের উপযুক্ত ট্যাবটি নির্বাচন করুন। কোনো ট্যাব পরিবর্তন করলে আপনার পূর্বে লেখা ডাটা হারিয়ে যাবে না।
+          <p className="text-xs sm:text-sm text-slate-400 font-sans">
+            আপনার কেনাকাটার পর্যায় অনুযায়ী নিচের যেকোনো একটি অপশন বেছে নিন
           </p>
         </div>
 
-        {/* 4-Workflow Tab Navigation with full ARIA semantics */}
+        {/* 3-Choice Segmented Tabs */}
         <div
           role="tablist"
-          aria-label="যাচাইকরণ পদ্ধতির তালিকা"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 p-1.5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-md"
+          aria-label="যাচাইকরণ অপশন তালিকা"
+          className="flex flex-col sm:flex-row items-center justify-center gap-2 p-1.5 rounded-2xl bg-slate-900/90 border border-slate-800 max-w-2xl mx-auto w-full"
         >
-          {WORKFLOWS.map((tab, idx) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+          {CHOICES.map((choice, idx) => {
+            const isActive = activeTab === choice.id;
 
             return (
               <button
-                key={tab.id}
-                id={`tab-${tab.id}`}
+                key={choice.id}
+                id={`tab-${choice.id}`}
                 role="tab"
                 aria-selected={isActive}
-                aria-controls={`tabpanel-${tab.id}`}
+                aria-controls={`tabpanel-${choice.id}`}
                 tabIndex={isActive ? 0 : -1}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  window.location.hash = tab.id;
-                }}
+                onClick={() => handleSelectTab(choice.id)}
                 onKeyDown={(e) => handleTabKeyDown(e, idx)}
-                className={`relative p-3.5 sm:p-4 rounded-xl text-left transition-all duration-200 flex flex-col justify-between focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 min-h-[52px] ${
+                className={`w-full sm:w-auto flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 min-h-[46px] flex items-center justify-center ${
                   isActive
-                    ? 'bg-slate-800/90 border-2 border-teal-500/60 shadow-md shadow-teal-950/40 text-white'
-                    : 'bg-slate-950/40 border border-slate-800/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                    ? 'bg-teal-600 text-white shadow-md'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                 }`}
               >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-1.5">
-                      <div
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                          isActive
-                            ? 'bg-teal-500 text-slate-950 font-bold'
-                            : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-400">{tab.step}</span>
-                    </div>
-
-                    <span
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                        isActive
-                          ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
-                          : 'bg-slate-900 text-slate-400 border-slate-700'
-                      }`}
-                    >
-                      {tab.badge}
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-sm sm:text-base text-slate-100 font-sans flex items-center gap-1.5">
-                    <span>{tab.titleBn}</span>
-                    {isActive && <CheckCircle2 className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
-                  </h3>
-                  <p className="text-[11px] font-mono text-slate-400 mb-1.5">
-                    {tab.titleEn}
-                  </p>
-                </div>
-
-                <p className="text-xs leading-relaxed text-slate-400 font-sans line-clamp-2">
-                  {tab.descriptionBn}
-                </p>
-
-                {isActive && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-1 rounded-t-full bg-teal-400" />
-                )}
+                <span>{choice.label}</span>
               </button>
             );
           })}
@@ -231,15 +143,6 @@ export const BuyerVerificationHub: React.FC = () => {
             className={activeTab === 'seller-history' ? 'block' : 'hidden'}
           >
             <SellerHistoryIntelligence />
-          </div>
-
-          <div
-            id="tabpanel-historical-comparison"
-            role="tabpanel"
-            aria-labelledby="tab-historical-comparison"
-            className={activeTab === 'historical-comparison' ? 'block' : 'hidden'}
-          >
-            <HistoricalComparisonView />
           </div>
         </div>
       </div>
