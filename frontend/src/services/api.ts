@@ -43,7 +43,7 @@ export interface RequestOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 65_000;
 
 async function fetchWithTimeout(
   url: string,
