@@ -1,8 +1,7 @@
 import React from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
-import { PurchasePromiseAnalyzer } from './components/PurchasePromiseAnalyzer';
-import { SellerHistoryIntelligence } from './components/SellerHistoryIntelligence';
+import { BuyerVerificationHub } from './components/BuyerVerificationHub';
 import { ProblemSolution } from './components/ProblemSolution';
 import { Features } from './components/Features';
 import { VerificationPreview } from './components/VerificationPreview';
@@ -15,8 +14,7 @@ export const App: React.FC = () => {
       <Navbar />
       <main className="flex-grow">
         <Hero />
-        <PurchasePromiseAnalyzer />
-        <SellerHistoryIntelligence />
+        <BuyerVerificationHub />
         <ProblemSolution />
         <Features />
         <VerificationPreview />

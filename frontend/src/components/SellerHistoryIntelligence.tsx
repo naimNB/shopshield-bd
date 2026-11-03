@@ -18,78 +18,12 @@ import {
   FileQuestion,
   Info,
 } from 'lucide-react';
-import { API_BASE_URL } from '../config';
-
-interface PageNameChange {
-  previous_name: string;
-  change_date?: string | null;
-  evidence_text?: string | null;
-}
-
-interface PageManagerLocation {
-  country: string;
-  count?: number | null;
-  evidence_text?: string | null;
-}
-
-interface PageTransparencyData {
-  page_name?: string | null;
-  page_creation_date?: string | null;
-  page_age_months?: number | null;
-  name_changes_count: number;
-  name_changes: PageNameChange[];
-  merge_history?: string | null;
-  manager_locations: PageManagerLocation[];
-  is_running_ads?: boolean | null;
-  unreadable_or_missing_fields: string[];
-  timeline_consistency_status?: string;
-  timeline_conflicts?: string[];
-  raw_extracted_text: string;
-}
-
-interface WebsiteArchiveSnapshot {
-  timestamp: string;
-  formatted_date: string;
-  snapshot_url: string;
-  status_code?: string | null;
-}
-
-interface WebsiteArchiveData {
-  target_url: string;
-  cleaned_domain: string;
-  archive_available: boolean;
-  coverage_status?: string;
-  earliest_snapshot?: WebsiteArchiveSnapshot | null;
-  latest_snapshot?: WebsiteArchiveSnapshot | null;
-  sample_snapshots_count?: number;
-  sample_snapshots: WebsiteArchiveSnapshot[];
-  total_snapshots_observed: number;
-  total_captures_estimate?: string | null;
-  data_limitations: string;
-}
-
-interface EvidenceFinding {
-  field_name: string;
-  field_label: string;
-  observed_value: unknown;
-  source_type: string;
-  source_url?: string | null;
-  observation_date?: string | null;
-  retrieval_date: string;
-  evidence_text?: string | null;
-  verification_status: 'USER_PROVIDED_UNVERIFIED' | 'INDEPENDENTLY_RETRIEVED' | 'UNAVAILABLE' | 'NEEDS_REVIEW';
-  limitations: string;
-}
-
-interface SellerHistoryReportResponse {
-  status: string;
-  independently_retrieved: EvidenceFinding[];
-  user_provided_screenshots: EvidenceFinding[];
-  unverified_or_unavailable: EvidenceFinding[];
-  buyer_verification_questions: string[];
-  overall_summary: string;
-  disclaimer: string;
-}
+import { api } from '../services/api';
+import type {
+  PageTransparencyData,
+  WebsiteArchiveData,
+  SellerHistoryReportResponse,
+} from '../types/api';
 
 export const SellerHistoryIntelligence: React.FC = () => {
   // Page Transparency Screenshot State
@@ -155,21 +89,8 @@ export const SellerHistoryIntelligence: React.FC = () => {
     setTransparencyLoading(true);
     setTransparencyError(null);
 
-    const formData = new FormData();
-    formData.append('file', transparencyFile);
-
     try {
-      const res = await fetch(`${API_BASE_URL}/seller-history/page-transparency`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || `সার্ভার ত্রুটি (${res.status})`);
-      }
-
-      const json = await res.json();
+      const json = await api.analyzePageTransparency(transparencyFile);
       setTransparencyData(json.transparency_data);
       setEditPageName(json.transparency_data.page_name || '');
       setEditCreationDate(json.transparency_data.page_creation_date || '');
@@ -196,18 +117,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
     setWebsiteError(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/seller-history/website`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: websiteUrl.trim() }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || `আর্কাইভ অনুসন্ধানে ত্রুটি (${res.status})`);
-      }
-
-      const json = await res.json();
+      const json = await api.fetchWebsiteHistory(websiteUrl.trim());
       setWebsiteData(json.website_data);
 
       // Trigger consolidated report update
@@ -227,19 +137,11 @@ export const SellerHistoryIntelligence: React.FC = () => {
   ) => {
     setReportLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/seller-history/report`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transparency_data: tData,
-          website_url: wUrl || null,
-        }),
+      const json = await api.fetchSellerHistoryReport({
+        transparency_data: tData,
+        website_url: wUrl || null,
       });
-
-      if (res.ok) {
-        const json = await res.json();
-        setReport(json);
-      }
+      setReport(json);
     } catch (err) {
       console.error('Error fetching consolidated report:', err);
     } finally {
@@ -485,6 +387,19 @@ export const SellerHistoryIntelligence: React.FC = () => {
                       placeholder="https://daraz.com.bd অথবা shop.com.bd"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500"
                     />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[11px] text-slate-400">নমুনা লিঙ্ক:</span>
+                    {['https://daraz.com.bd', 'https://chaldal.com', 'https://rokomari.com'].map((url) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => setWebsiteUrl(url)}
+                        className="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors font-mono"
+                      >
+                        {url.replace('https://', '')}
+                      </button>
+                    ))}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
                     পাবলিক ডোমেইন আর্কাইভ ক্যাপচার ও স্ন্যাপশট যাচাই করে।

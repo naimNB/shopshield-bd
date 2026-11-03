@@ -50,13 +50,12 @@ export const Navbar: React.FC = () => {
           </div>
 
           {/* Nav Links */}
-          <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300">
-            <a href="#analyzer" className="text-emerald-400 font-semibold hover:text-emerald-300 transition-colors">Analyzer</a>
-            <a href="#seller-history" className="hover:text-emerald-400 transition-colors">Seller History</a>
-            <a href="#problem-solution" className="hover:text-emerald-400 transition-colors">Why ShopShield</a>
-            <a href="#features" className="hover:text-emerald-400 transition-colors">Features</a>
-            <a href="#preview" className="hover:text-emerald-400 transition-colors">Preview</a>
-            <a href="#architecture" className="hover:text-emerald-400 transition-colors">Architecture</a>
+          <div className="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-300">
+            <a href="#ad-check" className="hover:text-emerald-400 transition-colors">বিজ্ঞাপন চেক</a>
+            <a href="#analyzer" className="hover:text-emerald-400 transition-colors">প্রতিশ্রুতি যাচাই</a>
+            <a href="#seller-history" className="hover:text-emerald-400 transition-colors">সেলার হিস্টোরি</a>
+            <a href="#compare" className="hover:text-emerald-400 transition-colors">পলিসি পরিবর্তন</a>
+            <a href="#problem-solution" className="hover:text-emerald-400 transition-colors">উদ্দেশ্য</a>
             <a
               href={`${API_BASE_URL}/docs`}
               target="_blank"
@@ -141,46 +140,39 @@ export const Navbar: React.FC = () => {
       {isMenuOpen && (
         <div className="md:hidden border-b border-slate-800 bg-navy-950 px-4 pt-2 pb-4 space-y-3">
           <a
-            href="#analyzer"
+            href="#ad-check"
             onClick={() => setIsMenuOpen(false)}
             className="block text-emerald-400 font-semibold py-1"
           >
-            AI Analyzer
+            বিজ্ঞাপন দ্রুত যাচাই (Ad Quick Check)
+          </a>
+          <a
+            href="#analyzer"
+            onClick={() => setIsMenuOpen(false)}
+            className="block text-slate-300 hover:text-emerald-400 py-1"
+          >
+            বিজ্ঞাপন বনাম চ্যাট (Promise Cross-Check)
           </a>
           <a
             href="#seller-history"
             onClick={() => setIsMenuOpen(false)}
             className="block text-slate-300 hover:text-emerald-400 py-1"
           >
-            Seller History
+            সেলার হিস্টোরি (Page & Domain Records)
+          </a>
+          <a
+            href="#compare"
+            onClick={() => setIsMenuOpen(false)}
+            className="block text-slate-300 hover:text-emerald-400 py-1"
+          >
+            পলিসি পরিবর্তন (Policy Evolution)
           </a>
           <a
             href="#problem-solution"
             onClick={() => setIsMenuOpen(false)}
             className="block text-slate-300 hover:text-emerald-400 py-1"
           >
-            Why ShopShield
-          </a>
-          <a
-            href="#features"
-            onClick={() => setIsMenuOpen(false)}
-            className="block text-slate-300 hover:text-emerald-400 py-1"
-          >
-            Features
-          </a>
-          <a
-            href="#preview"
-            onClick={() => setIsMenuOpen(false)}
-            className="block text-slate-300 hover:text-emerald-400 py-1"
-          >
-            Preview
-          </a>
-          <a
-            href="#architecture"
-            onClick={() => setIsMenuOpen(false)}
-            className="block text-slate-300 hover:text-emerald-400 py-1"
-          >
-            Architecture
+            উদ্দেশ্য (Why ShopShield)
           </a>
           <a
             href={`${API_BASE_URL}/docs`}
