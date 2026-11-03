@@ -5,7 +5,7 @@ terms, and generates practical buyer verification questions in clear Bangla.
 Crucially: An advance bKash or Nagad payment request does NOT imply fraud.
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Any
 from backend.app.schemas.claims import ExtractedClaims
 from backend.app.schemas.comparison import ComparisonItem, ContradictionStatus
 from backend.app.schemas.rules import PaymentWarning, PaymentWarningType, MissingInfoItem
@@ -127,7 +127,7 @@ class PaymentRulesEngine:
                 )
             )
 
-        # 3. Conflicting COD Rules
+        # 3. Conflicting or Denied COD Rules
         cod_contradiction = any(
             c.field == "cod_availability" and c.status == ContradictionStatus.CONTRADICTION
             for c in comparison_results
@@ -151,10 +151,46 @@ class PaymentRulesEngine:
             buyer_questions.append(
                 "আপনাদের বিজ্ঞাপনে ক্যাশ অন ডেলিভারি উল্লেখ ছিল, চ্যাটে কেন সম্পূর্ণ অগ্রিম চাওয়া হচ্ছে?"
             )
+        elif chat_claims.cod_available is False or ad_claims.cod_available is False:
+            ev = chat_claims.cod_evidence or ad_claims.cod_evidence
+            warnings.append(
+                PaymentWarning(
+                    type=PaymentWarningType.COD_DENIED_OR_CONFLICT.value,
+                    severity="caution",
+                    supporting_evidence=ev,
+                    explanation=(
+                        "Cash on Delivery is explicitly unavailable. Payment is required prior to receiving the parcel."
+                    ),
+                    suggested_buyer_action=(
+                        "ক্যাশ অন ডেলিভারি না থাকলে সম্পূর্ণ টাকা পাঠানোর আগে বিক্রেতার রিভিউ ও নির্ভরযোগ্যতা যাচাই করুন।"
+                    ),
+                )
+            )
+            buyer_questions.append(
+                "ক্যাশ অন ডেলিভারি সুবিধা না থাকলে, কুরিয়ার অফিস বা কোনো নিরাপদ পেমেন্ট মাধ্যমে লেনদেনের বিকল্প আছে কি?"
+            )
 
-        # 4. Missing Information Rules
-        # Return policy missing
-        if ad_claims.return_policy_available is None and chat_claims.return_policy_available is None:
+        # 4. Return Policy Explicit Denial vs Missing
+        if chat_claims.return_policy_available is False or ad_claims.return_policy_available is False:
+            ev = chat_claims.return_policy_evidence or ad_claims.return_policy_evidence
+            warnings.append(
+                PaymentWarning(
+                    type="NO_RETURN_POLICY",
+                    severity="caution",
+                    supporting_evidence=ev,
+                    explanation=(
+                        "The seller explicitly stated that returns or refunds are not allowed (final sale). "
+                        "Purchasing without return recourse carries elevated risk if the product is defective or damaged."
+                    ),
+                    suggested_buyer_action=(
+                        "পণ্য গ্রহণের আগে কুরিয়ারের সামনে পার্সেল খুলে গুণমান ও সাইজ নিশ্চিত হয়ে নিন।"
+                    ),
+                )
+            )
+            buyer_questions.append(
+                "পণ্য যদি সম্পূর্ণ ত্রুটিপূর্ণ বা ক্ষতিগ্রস্ত পৌঁছায়, সেক্ষেত্রে কি কোনো এক্সচেঞ্জ সুবিধা থাকবে?"
+            )
+        elif ad_claims.return_policy_available is None and chat_claims.return_policy_available is None:
             missing_info.append(
                 MissingInfoItem(
                     field="return_policy",
@@ -167,7 +203,35 @@ class PaymentRulesEngine:
                 "পণ্যটি যদি ত্রুটিযুক্ত বা ক্ষতিগ্রস্ত পাওয়া যায়, তবে কতদিনের মধ্যে রিটার্ন বা রিপ্লেসমেন্টের সুযোগ থাকবে?"
             )
 
-        # Warranty missing
+        # 5. Missing Product Price
+        if ad_claims.price is None and chat_claims.price is None:
+            missing_info.append(
+                MissingInfoItem(
+                    field="price",
+                    field_label="Product Price",
+                    description="Neither the advertisement nor the conversation states a clear numerical product price.",
+                    importance="high",
+                )
+            )
+            buyer_questions.append(
+                "পণ্যটির ডেলিভারি চার্জসহ মোট নির্ধারিত চূড়ান্ত বিক্রয়মূল্য কত টাকা?"
+            )
+
+        # 6. Missing Delivery Conditions
+        if not ad_claims.delivery_conditions and not chat_claims.delivery_conditions:
+            missing_info.append(
+                MissingInfoItem(
+                    field="delivery_charge",
+                    field_label="Delivery Fee & Shipping Terms",
+                    description="Courier delivery charges and delivery timeline were not specified in either source.",
+                    importance="medium",
+                )
+            )
+            buyer_questions.append(
+                "ঢাকা এবং ঢাকার বাইরে কুরিয়ার ডেলিভারি চার্জ কত টাকা পড়বে এবং কত কার্যদিবসের মধ্যে ডেলিভারি হবে?"
+            )
+
+        # 7. Warranty missing
         if ad_claims.warranty_available is None and chat_claims.warranty_available is None:
             missing_info.append(
                 MissingInfoItem(
@@ -181,9 +245,62 @@ class PaymentRulesEngine:
                 "এই পণ্যের সাথে কি কোনো অফিসিয়াল বা শপ ওয়ারেন্টি রয়েছে? ওয়ারেন্টি কার্ড প্রদান করা হবে কি?"
             )
 
-        # Open-box inspection check
+        # Open-box inspection recommendation
         buyer_questions.append(
             "কুরিয়ার থেকে পার্সেল রিসিভ করার সময় ডেলিভারিম্যানের সামনে খুলে দেখার (Open-box inspection) অনুমতি থাকবে কি?"
         )
 
-        return warnings, missing_info, buyer_questions
+        # Deduplicate buyer questions preserving chronological priority
+        seen = set()
+        deduped_questions: List[str] = []
+        for q in buyer_questions:
+            if q not in seen:
+                seen.add(q)
+                deduped_questions.append(q)
+
+        return warnings, missing_info, deduped_questions
+
+    def build_unified_findings(
+        self,
+        ad_claims: ExtractedClaims,
+        chat_claims: ExtractedClaims,
+        comparison_results: List[ComparisonItem],
+        warnings: List[PaymentWarning],
+        missing_info: List[MissingInfoItem],
+    ) -> List[Any]:
+        """Convert cross-reference comparison items and safety rules into standardized UnifiedFinding items."""
+        from backend.app.schemas.unified_evidence import UnifiedFinding, UnifiedFindingStatus
+        from backend.app.schemas.seller_history import SourceType, VerificationStatus
+
+        findings: List[UnifiedFinding] = []
+
+        status_map = {
+            ContradictionStatus.CONTRADICTION: UnifiedFindingStatus.CONTRADICTION,
+            ContradictionStatus.CONSISTENT: UnifiedFindingStatus.AGREEMENT,
+            ContradictionStatus.INSUFFICIENT_INFORMATION: UnifiedFindingStatus.MISSING_INFORMATION,
+            ContradictionStatus.NEEDS_REVIEW: UnifiedFindingStatus.NEEDS_REVIEW,
+        }
+
+        for comp in comparison_results:
+            u_status = status_map.get(comp.status, UnifiedFindingStatus.NEEDS_REVIEW)
+            ev = comp.chat_evidence or comp.ad_evidence
+            val = getattr(chat_claims, comp.field, None) or getattr(ad_claims, comp.field, None)
+
+            findings.append(
+                UnifiedFinding(
+                    claim_type=comp.field,
+                    field_label=comp.field_label,
+                    status=u_status,
+                    observed_value=str(val) if val is not None else None,
+                    source_type=SourceType.USER_INPUT,
+                    evidence_quote=ev,
+                    retrieval_date=ad_claims.price_evidence or "",  # will fallback to default timestamp in schema
+                    verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
+                    explanation=comp.explanation,
+                    severity=comp.severity,
+                    limitations="Based on user-submitted advertisement and seller conversation text.",
+                )
+            )
+
+        return findings
+

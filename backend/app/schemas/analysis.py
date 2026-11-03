@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from backend.app.schemas.claims import ExtractedClaims
 from backend.app.schemas.comparison import ComparisonItem
 from backend.app.schemas.rules import PaymentWarning, MissingInfoItem
+from backend.app.schemas.unified_evidence import UnifiedFinding
 
 
 class AnalyzeRequest(BaseModel):
@@ -57,5 +58,9 @@ class AnalyzeResponse(BaseModel):
     buyer_questions_bangla: List[str] = Field(
         default_factory=list,
         description="Practical verification questions in Bangla for the buyer to ask the seller",
+    )
+    unified_findings: List[UnifiedFinding] = Field(
+        default_factory=list,
+        description="Standardized unified evidence findings across categories",
     )
     metadata: AnalysisMetadata

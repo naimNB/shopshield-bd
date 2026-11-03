@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from backend.app.config import settings
 from backend.app.schemas.health import HealthResponse, ServiceStatus
 from backend.app.schemas.analysis import AnalyzeRequest, AnalyzeResponse
+from backend.app.schemas.ad_analysis import AdAnalysisRequest, AdAnalysisResponse
 from backend.app.schemas.screenshot import ScreenshotExtractionResponse
 from backend.app.schemas.seller_history import (
     PageTransparencyResponse,
@@ -17,6 +18,7 @@ from backend.app.schemas.temporal_comparison import (
     CompareHistoryResponse,
 )
 from backend.app.services.analyzer import PurchasePromiseAnalyzer
+from backend.app.services.ad_analyzer import AdAnalyzer
 from backend.app.services.screenshot_extractor import (
     ScreenshotExtractorService,
     ImageValidationError,
@@ -85,7 +87,7 @@ async def get_status():
     ai_status_label = "configured (unverified)" if ai_configured else "unconfigured (missing GEMINI_API_KEY)"
     return {
         "project": settings.PROJECT_NAME,
-        "phase": "Task 09 — Historical Purchase Promise & Policy Change Detection",
+        "phase": "Task 11 — Ad-only Purchase Verification and Unified Evidence Decision Engine",
         "event": "YUNet AIgnite Buildathon 2026",
         "ai_engine": {
             "model": settings.GEMINI_MODEL,
@@ -103,6 +105,8 @@ async def get_status():
             "website_wayback_history_research": "implemented",
             "seller_history_intelligence": "implemented",
             "historical_policy_change_detection": "implemented",
+            "ad_only_analysis": "implemented",
+            "unified_evidence_classification": "implemented",
         },
         "documentation": "/docs",
     }
@@ -187,6 +191,43 @@ async def analyze_promises(request: AnalyzeRequest) -> AnalyzeResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An internal server error occurred while analyzing purchase promises. Technical details have been logged.",
+        )
+
+
+@router.post(
+    "/analyze-ad",
+    response_model=AdAnalysisResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Ad-only Quick Check: Analyze Advertisement Before Seller Contact",
+    description=(
+        "Evaluates a standalone advertisement or social media post before the buyer starts chatting with the seller. "
+        "Extracts explicit commitments, flags missing critical information (price, return policy, delivery terms), "
+        "identifies ambiguous marketing buzzwords, assesses payment considerations, and generates practical Bangla seller verification questions."
+    ),
+    tags=["Analysis"],
+)
+async def analyze_ad(request: AdAnalysisRequest) -> AdAnalysisResponse:
+    """Analyze advertisement promises and evaluate missing critical terms before seller contact."""
+    ad_clean = request.advertisement_text.strip()
+    if len(ad_clean) < 5:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Advertisement text is too short. Please provide at least 5 characters.",
+        )
+    if len(request.advertisement_text) > settings.MAX_INPUT_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Advertisement text exceeds maximum limit of {settings.MAX_INPUT_TEXT_LENGTH} characters.",
+        )
+
+    analyzer = AdAnalyzer()
+    try:
+        return analyzer.analyze_ad(request)
+    except Exception as e:
+        logger.exception("Unexpected error during ad analysis: %s", type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal server error occurred while analyzing the advertisement.",
         )
 
 

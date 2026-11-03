@@ -1,0 +1,45 @@
+{
+  "total_scenarios": 3,
+  "elapsed_seconds": 34.357,
+  "contradiction_metrics": {
+    "true_positives": 2,
+    "true_negatives": 1,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "precision_percent": 100.0,
+    "recall_percent": 100.0,
+    "f1_score_percent": 100.0,
+    "accuracy_percent": 100.0
+  },
+  "extraction_accuracies": {
+    "price_accuracy": 100.0,
+    "cod_accuracy": 100.0,
+    "advance_accuracy": 100.0,
+    "return_accuracy": 66.67,
+    "missing_info_accuracy": 100.0,
+    "payment_warning_accuracy": 66.67
+  },
+  "evidence_integrity": {
+    "total_quotes": 24,
+    "unsupported_quotes": 1,
+    "unsupported_rate_percent": 4.17
+  },
+  "language_breakdown": {
+    "bangla": {
+      "total": 3,
+      "correct": 2
+    },
+    "banglish": {
+      "total": 0,
+      "correct": 0
+    },
+    "english": {
+      "total": 0,
+      "correct": 0
+    },
+    "mixed": {
+      "total": 0,
+      "correct": 0
+    }
+  }
+}

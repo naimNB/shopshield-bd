@@ -50,6 +50,15 @@ class PurchasePromiseAnalyzer:
             comparison_results=comparison_results,
         )
 
+        # 4. Standardize findings into unified classification model
+        unified_findings = self.rules_engine.build_unified_findings(
+            ad_claims=ad_claims,
+            chat_claims=chat_claims,
+            comparison_results=comparison_results,
+            warnings=warnings,
+            missing_info=missing_info,
+        )
+
         elapsed_ms = (time.time() - start_time) * 1000.0
 
         model_str = getattr(self.extractor, "model_name", None)
@@ -74,5 +83,6 @@ class PurchasePromiseAnalyzer:
             payment_warnings=warnings,
             missing_information=missing_info,
             buyer_questions_bangla=buyer_questions,
+            unified_findings=unified_findings,
             metadata=metadata,
         )
