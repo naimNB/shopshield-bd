@@ -19,6 +19,16 @@ class ClaimType(str, Enum):
     OTHER = "other"
 
 
+class AdvancePaymentPurpose(str, Enum):
+    """Contextually supported advance payment purposes."""
+
+    DELIVERY_CHARGE = "DELIVERY_CHARGE"
+    BOOKING_FEE = "BOOKING_FEE"
+    PARTIAL_PRODUCT_PAYMENT = "PARTIAL_PRODUCT_PAYMENT"
+    FULL_PRODUCT_PAYMENT = "FULL_PRODUCT_PAYMENT"
+    UNSPECIFIED = "UNSPECIFIED"
+
+
 class SingleClaim(BaseModel):
     """Individual atomic claim extracted from the source."""
 

@@ -1,0 +1,249 @@
+{
+  "dataset": "baseline",
+  "engine": "deterministic",
+  "total_scenarios": 65,
+  "elapsed_seconds": 0.029,
+  "contradiction_confusion_matrix": {
+    "true_positives": 13,
+    "true_negatives": 50,
+    "false_positives": 0,
+    "false_negatives": 2,
+    "precision": 100.0,
+    "recall": 86.67,
+    "f1_score": 92.86,
+    "accuracy": 96.92
+  },
+  "extraction_accuracies": {
+    "price_accuracy": 100.0,
+    "cod_accuracy": 91.8,
+    "advance_accuracy": 74.58,
+    "advance_purpose_accuracy": 62.5,
+    "return_accuracy": 93.75,
+    "missing_info_accuracy": 95.45,
+    "payment_warning_accuracy": 65.0
+  },
+  "evidence_integrity": {
+    "total_quotes": 279,
+    "unsupported_quotes": 0,
+    "unsupported_rate": 0.0,
+    "grounding_rate": 100.0
+  },
+  "language_breakdown": {
+    "bangla": {
+      "total": 24,
+      "correct": 12
+    },
+    "banglish": {
+      "total": 15,
+      "correct": 9
+    },
+    "english": {
+      "total": 14,
+      "correct": 9
+    },
+    "mixed": {
+      "total": 12,
+      "correct": 9
+    }
+  },
+  "failed_scenarios_count": 26,
+  "failed_scenarios": [
+    {
+      "id": "scen_01",
+      "title": "Smart Watch: Price & Full Advance Contradiction",
+      "reasons": [
+        "Advance amount mismatch: expected 1500.0, got None"
+      ]
+    },
+    {
+      "id": "scen_05",
+      "title": "Leather Wallet: Consistent Promises Across Both Sources",
+      "reasons": [
+        "Return policy mismatch: expected True, got None"
+      ]
+    },
+    {
+      "id": "scen_07",
+      "title": "Electric Kettle: High Advance Fee (>250 BDT)",
+      "reasons": [
+        "Advance purpose mismatch: expected BOOKING, got BOOKING_FEE",
+        "Payment warnings mismatch: expected one of ['HIGH_ADVANCE_AMOUNT'], got ['ADVANCE_BOOKING_FEE']"
+      ]
+    },
+    {
+      "id": "scen_08",
+      "title": "Face Whitening Cream: Urgent Pressure & No COD",
+      "reasons": [
+        "Advance required mismatch: expected True, got None",
+        "Advance amount mismatch: expected 800.0, got None",
+        "Advance purpose mismatch: expected FULL_PRODUCT_PAYMENT, got None"
+      ]
+    },
+    {
+      "id": "scen_11",
+      "title": "Wireless Mouse: Price Discrepancy Without COD Conflict",
+      "reasons": [
+        "Chat COD mismatch: expected True, got None"
+      ]
+    },
+    {
+      "id": "scen_12",
+      "title": "Hair Oil: Missing Return & Warranty in Both Sources",
+      "reasons": [
+        "Chat COD mismatch: expected True, got None"
+      ]
+    },
+    {
+      "id": "scen_13",
+      "title": "Earbuds: Price & Advance Delivery Fee (Banglish)",
+      "reasons": [
+        "Advance purpose mismatch: expected DELIVERY_CHARGE, got BOOKING_FEE",
+        "Payment warnings mismatch: expected one of ['ADVANCE_DELIVERY_CHARGE'], got ['ADVANCE_BOOKING_FEE']"
+      ]
+    },
+    {
+      "id": "scen_18",
+      "title": "Power Bank 20000mAh: High Advance Request (Banglish)",
+      "reasons": [
+        "Payment warnings mismatch: expected one of ['HIGH_ADVANCE_AMOUNT'], got ['ADVANCE_UNSPECIFIED_PURPOSE']"
+      ]
+    },
+    {
+      "id": "scen_19",
+      "title": "Backpack Water Resistant: Complete Consistent (Banglish)",
+      "reasons": [
+        "Advance required mismatch: expected True, got None",
+        "Advance amount mismatch: expected 100.0, got None",
+        "Payment warnings mismatch: expected one of ['ADVANCE_DELIVERY_CHARGE'], got []"
+      ]
+    },
+    {
+      "id": "scen_21",
+      "title": "Hair Trimmer: Full Advance Only in Ad (Banglish)",
+      "reasons": [
+        "Missing info mismatch: expected ['return_policy', 'warranty', 'delivery_charge'], got ['return_policy', 'warranty']"
+      ]
+    },
+    {
+      "id": "scen_23",
+      "title": "Ring Light Tripod: Normal Courier Advance (Banglish)",
+      "reasons": [
+        "Advance required mismatch: expected True, got None",
+        "Advance amount mismatch: expected 150.0, got None",
+        "Payment warnings mismatch: expected one of ['ADVANCE_DELIVERY_CHARGE'], got []"
+      ]
+    },
+    {
+      "id": "scen_26",
+      "title": "Smart Watch Ultra: Price Contradiction (English)",
+      "reasons": [
+        "False Negative contradiction: predicted false, expected true"
+      ]
+    },
+    {
+      "id": "scen_27",
+      "title": "Leather Belt: Complete Agreement with Delivery Advance (English)",
+      "reasons": [
+        "Payment warnings mismatch: expected one of ['ADVANCE_DELIVERY_CHARGE'], got ['ADVANCE_BOOKING_FEE']"
+      ]
+    },
+    {
+      "id": "scen_30",
+      "title": "Ergonomic Office Chair: High Advance Booking Fee (English)",
+      "reasons": [
+        "Payment warnings mismatch: expected one of ['HIGH_ADVANCE_AMOUNT'], got ['ADVANCE_BOOKING_FEE']"
+      ]
+    },
+    {
+      "id": "scen_36",
+      "title": "Thermal Water Bottle: Missing Warranty in Both Sources (English)",
+      "reasons": [
+        "Chat COD mismatch: expected True, got None"
+      ]
+    },
+    {
+      "id": "scen_37",
+      "title": "Air Fryer: Mixed Bangla-English Price Contradiction",
+      "reasons": [
+        "Chat COD mismatch: expected False, got None"
+      ]
+    },
+    {
+      "id": "scen_41",
+      "title": "Smart Door Lock: High Advance Booking Fee (Mixed)",
+      "reasons": [
+        "Payment warnings mismatch: expected one of ['HIGH_ADVANCE_AMOUNT'], got ['ADVANCE_BOOKING_FEE']"
+      ]
+    },
+    {
+      "id": "scen_44",
+      "title": "Ladies Handbag: Complete Agreement (Mixed)",
+      "reasons": [
+        "Advance required mismatch: expected True, got None",
+        "Advance amount mismatch: expected 150.0, got None",
+        "Payment warnings mismatch: expected one of ['ADVANCE_DELIVERY_CHARGE'], got []"
+      ]
+    },
+    {
+      "id": "scen_49",
+      "title": "Buy 1 Get 1 Offer: Price Contradiction on Single Unit",
+      "reasons": [
+        "False Negative contradiction: predicted false, expected true"
+      ]
+    },
+    {
+      "id": "scen_52",
+      "title": "CCTV Camera Set: Advance Specified Without Purpose",
+      "reasons": [
+        "Payment warnings mismatch: expected one of ['HIGH_ADVANCE_AMOUNT'], got ['ADVANCE_UNSPECIFIED_PURPOSE']"
+      ]
+    },
+    {
+      "id": "scen_53",
+      "title": "Winter Quilt: Delivery Fee Advance (150 BDT) Legitimacy",
+      "reasons": [
+        "Payment warnings mismatch: expected one of ['ADVANCE_DELIVERY_CHARGE'], got ['ADVANCE_BOOKING_FEE']"
+      ]
+    },
+    {
+      "id": "scen_55",
+      "title": "Action Camera 4K: Full Advance Demanded in Chat",
+      "reasons": [
+        "Advance required mismatch: expected True, got None",
+        "Advance amount mismatch: expected 4200.0, got None"
+      ]
+    },
+    {
+      "id": "scen_58",
+      "title": "Cordless Vacuum Cleaner: Full Advance with High Pressure",
+      "reasons": [
+        "Advance required mismatch: expected True, got None",
+        "Advance amount mismatch: expected 1350.0, got None"
+      ]
+    },
+    {
+      "id": "scen_61",
+      "title": "Leather Boots: Replacement Available Within 7 Days",
+      "reasons": [
+        "Advance required mismatch: expected True, got None",
+        "Advance amount mismatch: expected 150.0, got None",
+        "Payment warnings mismatch: expected one of ['ADVANCE_DELIVERY_CHARGE'], got []"
+      ]
+    },
+    {
+      "id": "scen_62",
+      "title": "Smart Watch Strap: Ad-Only Cheap Item with Advance Delivery",
+      "reasons": [
+        "COD mismatch: expected True, got None",
+        "Payment warning mismatch: expected one of ['ADVANCE_DELIVERY_CHARGE'], got ['ADVANCE_BOOKING_FEE']"
+      ]
+    },
+    {
+      "id": "scen_65",
+      "title": "Foldable Drone 4K: High Advance and Contradictory Price",
+      "reasons": [
+        "Payment warnings mismatch: expected one of ['HIGH_ADVANCE_AMOUNT'], got ['ADVANCE_UNSPECIFIED_PURPOSE']"
+      ]
+    }
+  ]
+}

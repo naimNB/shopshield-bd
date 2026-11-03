@@ -1,0 +1,965 @@
+[
+  {
+    "id": "holdout_01",
+    "title": "Smart Watch: Courier Advance Outside Dhaka (Banglish)",
+    "category": "advance_delivery_charge",
+    "language": "banglish",
+    "mode": "ad_chat",
+    "advertisement_text": "Smart watch T900 ultra original. Price matro 1350 taka. Shara Bangladesh e cash on delivery paben. 7 diner replacement guarantee.",
+    "seller_chat_text": "Hello brother, price 1350 tk. Dhaka te cash on delivery. Dhakar baire delivery charge 150 taka advance bkash korte hobe, baki taka delivery te diben.",
+    "expected": {
+      "expected_price_ad": 1350.0,
+      "expected_price_chat": 1350.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 150.0,
+      "expected_advance_purpose": "DELIVERY_CHARGE",
+      "expected_return_available": true,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_DELIVERY_CHARGE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_02",
+    "title": "Leather Wallet: Unspecified Advance Requirement (Bangla)",
+    "category": "advance_unspecified",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "খাঁটি চামড়ার জেন্টলমেন ওয়ালেট। অফার মূল্য ৮৫০ টাকা। ক্যাশ অন ডেলিভারি সুবিধা আছে। ৭ দিনের পরিবর্তন সুবিধা।",
+    "seller_chat_text": "ওয়ালেটের দাম ৮৫০ টাকা। তবে অর্ডার কনফার্ম করতে ১৫০ টাকা অগ্রিম বিকাশ করতে হবে। বাকি টাকা ডেলিভারিতে।",
+    "expected": {
+      "expected_price_ad": 850.0,
+      "expected_price_chat": 850.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 150.0,
+      "expected_advance_purpose": "UNSPECIFIED",
+      "expected_return_available": true,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_UNSPECIFIED_PURPOSE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_03",
+    "title": "Jamdani Saree: Advance Booking Fee (Bangla)",
+    "category": "advance_booking_fee",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "ঢাকাই জামদানি শাড়ি এক্সক্লুসিভ কালেকশন। মূল্য ৩২০০ টাকা। সারা দেশে হোম ডেলিভারি। ক্যাশ অন ডেলিভারি প্রযোজ্য।",
+    "seller_chat_text": "আসসালামু আলাইকুম, শাড়ির দাম ৩২০০ টাকা। ডিজাইনটি হোল্ড করতে ২০০ টাকা বুকিং ফি অগ্রিম দিতে হবে। বাকি টাকা ক্যাশ অন ডেলিভারিতে।",
+    "expected": {
+      "expected_price_ad": 3200.0,
+      "expected_price_chat": 3200.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 200.0,
+      "expected_advance_purpose": "BOOKING_FEE",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_BOOKING_FEE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_04",
+    "title": "Air Fryer: Full Advance Demand (English)",
+    "category": "advance_full_payment",
+    "language": "english",
+    "mode": "ad_chat",
+    "advertisement_text": "Digital Air Fryer 6 Liters. Special Price 4500 BDT. Cash on delivery available. 1 year service warranty included.",
+    "seller_chat_text": "Hello, the price is 4500 BDT. We do not support cash on delivery for appliances. 100% full advance payment is required via bKash.",
+    "expected": {
+      "expected_price_ad": 4500.0,
+      "expected_price_chat": 4500.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": false,
+      "expected_advance_required": true,
+      "expected_advance_amount": 4500.0,
+      "expected_advance_purpose": "FULL_PRODUCT_PAYMENT",
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "cod_availability"
+      ],
+      "expected_payment_warnings": [
+        "ADVANCE_FULL_PAYMENT",
+        "COD_DENIED_OR_CONFLICT"
+      ]
+    }
+  },
+  {
+    "id": "holdout_05",
+    "title": "Smart LED TV: Partial Advance Payment (Mixed)",
+    "category": "advance_partial_payment",
+    "language": "mixed",
+    "mode": "ad_chat",
+    "advertisement_text": "43 inch 4K Android Smart TV. Offer price 24000 টাকা। সারা দেশে ক্যাশ অন ডেলিভারি। ২ বছরের ওয়ারেন্টি।",
+    "seller_chat_text": "জি ভাইয়া ২৪০০০ টাকা দাম। সিকিউরিটির জন্য পণ্যের মূল্যের অংশ হিসেবে ২০০০ টাকা অগ্রিম বিকাশ করতে হবে। বাকি টাকা ক্যাশ অন ডেলিভারিতে।",
+    "expected": {
+      "expected_price_ad": 24000.0,
+      "expected_price_chat": 24000.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 2000.0,
+      "expected_advance_purpose": "PARTIAL_PRODUCT_PAYMENT",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_PARTIAL_PAYMENT"
+      ]
+    }
+  },
+  {
+    "id": "holdout_06",
+    "title": "Organic Honey: Conditional Free Delivery Threshold (Bangla)",
+    "category": "conditional_threshold",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "সুন্দরবনের প্রাকৃতিক মধু ১ কেজি। মূল্য ৯৫০ টাকা। ১৫০০ টাকার বেশি অর্ডার করলে ফ্রি ডেলিভারি সারা বাংলাদেশে।",
+    "seller_chat_text": "মধুর দাম ৯৫০ টাকা। আপনি ১ কেজি অর্ডার করেছেন যা ১৫০০ টাকার নিচে, তাই ডেলিভারি চার্জ ৮০ টাকা প্রযোজ্য হবে।",
+    "expected": {
+      "expected_price_ad": 950.0,
+      "expected_price_chat": 950.0,
+      "expected_cod_ad": null,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_07",
+    "title": "T-Shirts: Combo Offer vs Single Unit Price (Bangla)",
+    "category": "conditional_combo",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "১০০% কটন প্রিমিয়াম গোল গলা টি-শার্ট। ৩টি টি-শার্ট কম্বো প্যাক মাত্র ৯৯০ টাকা। সারা দেশে ক্যাশ অন ডেলিভারি।",
+    "seller_chat_text": "১টি নিলে সিঙ্গেল পিস ৩৫০ টাকা পড়বে ভাইয়া। ৩টি কম্বো নিলে ৯৯০ টাকা। আপনি ১ পিস নিতে চাইলে ৩৫০ টাকা।",
+    "expected": {
+      "expected_price_ad": 990.0,
+      "expected_price_chat": 350.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_08",
+    "title": "Bluetooth Earbuds: Expired Promotional Price (Banglish)",
+    "category": "conditional_expired_offer",
+    "language": "banglish",
+    "mode": "ad_chat",
+    "advertisement_text": "M10 TWS Wireless Earbuds. Flash sale offer dam matro 450 taka. Stock limited. Cash on delivery available.",
+    "seller_chat_text": "Bhaiya flash sale offer expired hoye geche. Current regular price 650 taka. Cash on delivery ache.",
+    "expected": {
+      "expected_price_ad": 450.0,
+      "expected_price_chat": 650.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_09",
+    "title": "Sneakers: Replacement Guaranteed vs Cash Refund Exclusion (Bangla)",
+    "category": "conditional_refund_scope",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "মেনস স্পোর্টস স্নিকার্স। মূল্য ১৪৫০ টাকা। সাইজে না মিললে ৭ দিনের রিপ্লেসমেন্ট সুবিধা। ক্যাশ অন ডেলিভারি।",
+    "seller_chat_text": "স্নিকার্সের দাম ১৪৫০ টাকা। সাইজে সমস্যা হলে ৭ দিনের মধ্যে পরিবর্তন বা রিপ্লেসমেন্ট পাবেন, কিন্তু টাকা ফেরত হবে না।",
+    "expected": {
+      "expected_price_ad": 1450.0,
+      "expected_price_chat": 1450.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": true,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_10",
+    "title": "Microwave Oven: Official Warranty vs Service Warranty Scope (English)",
+    "category": "conditional_warranty_scope",
+    "language": "english",
+    "mode": "ad_chat",
+    "advertisement_text": "Convection Microwave Oven 25L. Price 11500 BDT. Cash on delivery available. 1 year warranty included.",
+    "seller_chat_text": "The oven price is 11500 BDT. Please note we provide 1 year free service warranty; parts replacement is not covered.",
+    "expected": {
+      "expected_price_ad": 11500.0,
+      "expected_price_chat": 11500.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_11",
+    "title": "Cotton Kurti: Regional COD Condition (Bangla)",
+    "category": "conditional_regional_cod",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "ডিজাইনার সুতি কুর্তি। আকর্ষণীয় মূল্য ৭৫০ টাকা। ঢাকার ভেতর ক্যাশ অন ডেলিভারি। ৭ দিনের এক্সচেঞ্জ সুবিধা।",
+    "seller_chat_text": "আপু কুর্তির দাম ৭৫০ টাকা। চট্টগ্রাম ও ঢাকার বাইরে ক্যাশ অন ডেলিভারি নেই, কুরিয়ার চার্জ অগ্রিম বিকাশ করতে হবে।",
+    "expected": {
+      "expected_price_ad": 750.0,
+      "expected_price_chat": 750.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": false,
+      "expected_advance_required": true,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": "DELIVERY_CHARGE",
+      "expected_return_available": true,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_DELIVERY_CHARGE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_12",
+    "title": "Kitchen Blender: Explicit Price Contradiction (Bangla)",
+    "category": "contradiction_price",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "হেভি ডিউটি ৩ ইন ১ ব্লেন্ডার। অফার মূল্য মাত্র ১৬৫০ টাকা। ক্যাশ অন ডেলিভারি প্রযোজ্য। ১ বছরের ওয়ারেন্টি।",
+    "seller_chat_text": "ব্লেন্ডারের দাম ২২৫০ টাকা ফিক্সড। ১৬৫০ টাকা দেওয়া সম্ভব না। ক্যাশ অন ডেলিভারিতে নিতে পারবেন।",
+    "expected": {
+      "expected_price_ad": 1650.0,
+      "expected_price_chat": 2250.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "price"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_13",
+    "title": "Mechanical Keyboard: Cash on Delivery Contradiction (English)",
+    "category": "contradiction_cod",
+    "language": "english",
+    "mode": "ad_chat",
+    "advertisement_text": "RGB Mechanical Gaming Keyboard. Price 2800 BDT. Cash on delivery available all over Bangladesh.",
+    "seller_chat_text": "Price is 2800 BDT. Cash on delivery is completely unavailable due to courier issues. You must pay before dispatch.",
+    "expected": {
+      "expected_price_ad": 2800.0,
+      "expected_price_chat": 2800.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": false,
+      "expected_advance_required": true,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": "UNSPECIFIED",
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "cod_availability"
+      ],
+      "expected_payment_warnings": [
+        "COD_DENIED_OR_CONFLICT"
+      ]
+    }
+  },
+  {
+    "id": "holdout_14",
+    "title": "Polo Shirt: Free Delivery Contradiction (Banglish)",
+    "category": "contradiction_delivery",
+    "language": "banglish",
+    "mode": "ad_chat",
+    "advertisement_text": "Export quality polo shirt. Dam 550 taka. Shara Bangladesh e delivery free. Cash on delivery available.",
+    "seller_chat_text": "Polo shirt 550 tk. Delivery free hobe na bhai, delivery charge 120 taka dite hobe.",
+    "expected": {
+      "expected_price_ad": 550.0,
+      "expected_price_chat": 550.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "delivery_conditions"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_15",
+    "title": "Formal Shoes: Open-Box Inspection Contradiction (Bangla)",
+    "category": "contradiction_inspection",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "চামড়ার ফরমাল জুতো। মূল্য ২১০০ টাকা। ক্যাশ অন ডেলিভারি। ডেলিভারির সময় পার্সেল খুলে দেখে চেক করে নেওয়ার সুযোগ।",
+    "seller_chat_text": "জুতোর দাম ২১০০ টাকা। ডেলিভারি ম্যানের সামনে পার্সেল খুলতে পারবেন না, আগে টাকা দিয়ে পার্সেল রিসিভ করতে হবে।",
+    "expected": {
+      "expected_price_ad": 2100.0,
+      "expected_price_chat": 2100.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "delivery_conditions"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_16",
+    "title": "Hair Straightener: Return Denial Contradiction (Mixed)",
+    "category": "contradiction_return",
+    "language": "mixed",
+    "mode": "ad_chat",
+    "advertisement_text": "Ceramic Hair Straightener Brush. Price 1250 BDT. ৭ দিনের ইজি রিপ্লেসমেন্ট গ্যারান্টি। Cash on delivery.",
+    "seller_chat_text": "দাম ১২৫০ টাকা। কসমেটিক আইটেমে কোনো রিটার্ন বা রিপ্লেসমেন্ট হবে না, বিক্রি হলে ফেরত নেওয়া হয় না।",
+    "expected": {
+      "expected_price_ad": 1250.0,
+      "expected_price_chat": 1250.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": false,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "return_policy"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_17",
+    "title": "Electric Kettle: Warranty Denial Contradiction (Bangla)",
+    "category": "contradiction_warranty",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "স্টেইনলেস স্টিল ইলেকট্রিক কেটলি ২ লিটার। দাম ৭৫০ টাকা। ক্যাশ অন ডেলিভারি। ২ বছরের ওয়ারেন্টি।",
+    "seller_chat_text": "কেটলির দাম ৭৫০ টাকা। ভাই এই কম দামের কেটলিতে কোনো ওয়ারেন্টি নেই। ক্যাশ অন ডেলিভারিতে পাবেন।",
+    "expected": {
+      "expected_price_ad": 750.0,
+      "expected_price_chat": 750.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "warranty"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_18",
+    "title": "Backpack: Zero Advance Contradiction (Banglish)",
+    "category": "contradiction_advance",
+    "language": "banglish",
+    "mode": "ad_chat",
+    "advertisement_text": "Waterproof laptop backpack. Price 1100 taka. No advance payment needed, completely free booking. Cash on delivery.",
+    "seller_chat_text": "Bag price 1100 tk. Order confirm korte hole 200 taka advance ditei hobe, advance chara order hobe na.",
+    "expected": {
+      "expected_price_ad": 1100.0,
+      "expected_price_chat": 1100.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": true,
+      "expected_advance_amount": 200.0,
+      "expected_advance_purpose": "UNSPECIFIED",
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "advance_payment"
+      ],
+      "expected_payment_warnings": [
+        "ADVANCE_UNSPECIFIED_PURPOSE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_19",
+    "title": "Organic Ghee: Ad-only Complete Details (Bangla)",
+    "category": "ad_only_complete",
+    "language": "bangla",
+    "mode": "ad_only",
+    "advertisement_text": "গাওয়া ঘি ৫০০ গ্রাম। মূল্য ৮০০ টাকা। সারা বাংলাদেশে ক্যাশ অন ডেলিভারি। কোনো অগ্রিম ছাড়াই অর্ডার করুন। ৭ দিনের রিপ্লেসমেন্ট।",
+    "expected": {
+      "expected_price_ad": 800.0,
+      "expected_cod_ad": true,
+      "expected_advance_required": false,
+      "expected_return_available": true,
+      "has_contradiction": false,
+      "missing_critical_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_20",
+    "title": "French Perfume: Ad-only Missing Price and Return (Bangla)",
+    "category": "ad_only_missing_info",
+    "language": "bangla",
+    "mode": "ad_only",
+    "advertisement_text": "অরিজিনাল ফ্রেঞ্চ পারফিউম ১০০ মিলি। ইনবক্সে যোগাযোগ করে অর্ডার কনফার্ম করুন। ক্যাশ অন ডেলিভারি প্রযোজ্য।",
+    "expected": {
+      "expected_price_ad": null,
+      "expected_cod_ad": true,
+      "expected_advance_required": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "missing_critical_fields": [
+        "price",
+        "return_policy"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_21",
+    "title": "Bluetooth Speaker: Ad-only Booking Fee (Banglish)",
+    "category": "ad_only_booking_fee",
+    "language": "banglish",
+    "mode": "ad_only",
+    "advertisement_text": "Mini portable bluetooth speaker. Price 950 taka. Cash on delivery available. Booking fee 100 taka advance for confirmation.",
+    "expected": {
+      "expected_price_ad": 950.0,
+      "expected_cod_ad": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 100.0,
+      "expected_advance_purpose": "BOOKING_FEE",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "missing_critical_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_BOOKING_FEE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_22",
+    "title": "Mechanical Keyboard: Ad-only Free Delivery Condition (English)",
+    "category": "ad_only_terms",
+    "language": "english",
+    "mode": "ad_only",
+    "advertisement_text": "Custom Mechanical Keyboard. Price 3500 BDT. Free delivery on orders above 3000 BDT. Cash on delivery available.",
+    "expected": {
+      "expected_price_ad": 3500.0,
+      "expected_cod_ad": true,
+      "expected_advance_required": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "missing_critical_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_23",
+    "title": "Ladies Kurti: Ad-only Explicit Return Denial (Bangla)",
+    "category": "ad_only_no_return",
+    "language": "bangla",
+    "mode": "ad_only",
+    "advertisement_text": "কটন প্রিন্টেড কুর্তি। অফার মূল্য ৪৫০ টাকা। ক্যাশ অন ডেলিভারি আছে। সেল ক্লিয়ারেন্স অফার, বিক্রিত পণ্য ফেরত নেওয়া হবে না।",
+    "expected": {
+      "expected_price_ad": 450.0,
+      "expected_cod_ad": true,
+      "expected_advance_required": null,
+      "expected_return_available": false,
+      "has_contradiction": false,
+      "missing_critical_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_24",
+    "title": "Mustard Oil: Aligned Price with Courier Advance (Bangla)",
+    "category": "consistent_advance_courier",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "ঘানি ভাঙা খাঁটি সরিষার তেল ৫ লিটার। মূল্য ১২৫০ টাকা। ক্যাশ অন ডেলিভারি সুবিধা আছে।",
+    "seller_chat_text": "তেলের মূল্য ১২৫০ টাকা। কুরিয়ার ডেলিভারি চার্জ ১৩০ টাকা অগ্রিম বিকাশ করতে হবে। বাকি টাকা ক্যাশ অন ডেলিভারিতে।",
+    "expected": {
+      "expected_price_ad": 1250.0,
+      "expected_price_chat": 1250.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 130.0,
+      "expected_advance_purpose": "DELIVERY_CHARGE",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_DELIVERY_CHARGE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_25",
+    "title": "Gaming Mouse: Consistent Warranty and Price (Banglish)",
+    "category": "consistent_warranty",
+    "language": "banglish",
+    "mode": "ad_chat",
+    "advertisement_text": "Logitech G102 gaming mouse original. Price 1850 taka. 1 year official warranty. Cash on delivery available.",
+    "seller_chat_text": "Mouse price 1850 taka. 1 year official warranty paben and cash on delivery hobe.",
+    "expected": {
+      "expected_price_ad": 1850.0,
+      "expected_price_chat": 1850.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_26",
+    "title": "Espresso Machine: Advance Booking Alignment (English)",
+    "category": "consistent_booking",
+    "language": "english",
+    "mode": "ad_chat",
+    "advertisement_text": "Manual Espresso Coffee Maker. Price 8500 BDT. Cash on delivery with 1000 BDT booking fee advance.",
+    "seller_chat_text": "Hello, the coffee maker is 8500 BDT. You need to pay 1000 BDT booking fee in advance, remaining balance on delivery.",
+    "expected": {
+      "expected_price_ad": 8500.0,
+      "expected_price_chat": 8500.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 1000.0,
+      "expected_advance_purpose": "BOOKING_FEE",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_BOOKING_FEE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_27",
+    "title": "Formal Shoes: Delivery Charge Advance Alignment (Mixed)",
+    "category": "consistent_mixed",
+    "language": "mixed",
+    "mode": "ad_chat",
+    "advertisement_text": "Pure Leather Formal Shoes. Price 1950 টাকা। Cash on delivery available. ৭ দিনের রিপ্লেসমেন্ট।",
+    "seller_chat_text": "জুতার দাম ১৯৫০ টাকা। ঢাকার বাইরে কুরিয়ার চার্জ ১২০ টাকা অগ্রিম বিকাশ করতে হবে। বাকি টাকা ডেলিভারিতে দিবেন।",
+    "expected": {
+      "expected_price_ad": 1950.0,
+      "expected_price_chat": 1950.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 120.0,
+      "expected_advance_purpose": "DELIVERY_CHARGE",
+      "expected_return_available": true,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_DELIVERY_CHARGE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_28",
+    "title": "Baby Diaper: Full Alignment with Zero Advance (Bangla)",
+    "category": "consistent_zero_advance",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "বেবি প্যান্ট ডায়াপার মেগা প্যাক। অফার মূল্য ১৩৫০ টাকা। কোনো অগ্রিম ছাড়াই সারা দেশে ক্যাশ অন ডেলিভারি।",
+    "seller_chat_text": "ডায়াপারের মূল্য ১৩৫০ টাকা। অগ্রিম কোনো টাকা দিতে হবে না, পণ্য হাতে পেয়ে পুরো মূল্য পরিশোধ করবেন।",
+    "expected": {
+      "expected_price_ad": 1350.0,
+      "expected_price_chat": 1350.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": false,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_29",
+    "title": "Drone Camera: Unexplained Price Hike (Banglish)",
+    "category": "contradiction_price",
+    "language": "banglish",
+    "mode": "ad_chat",
+    "advertisement_text": "Mini 4K camera drone with dual battery. Dam matro 3800 taka. Cash on delivery available.",
+    "seller_chat_text": "Drone er dam ekhon 5200 taka. 3800 taka e hobe na. Cash on delivery te nite paren.",
+    "expected": {
+      "expected_price_ad": 3800.0,
+      "expected_price_chat": 5200.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "price"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_30",
+    "title": "Leather Travel Bag: Return Reversal (Bangla)",
+    "category": "contradiction_return",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "ট্রাভেল ডাফেল ব্যাগ। মূল্য ২৫০০ টাকা। ৭ দিনের রিটার্ন ও ক্যাশ রিফান্ড সুবিধা। ক্যাশ অন ডেলিভারি।",
+    "seller_chat_text": "ব্যাগের দাম ২৫০০ টাকা। আমাদের কোনো রিফান্ড বা রিটার্ন পলিসি নেই, বিক্রি করা মাল কোনোভাবেই ফেরত নেওয়া হবে না।",
+    "expected": {
+      "expected_price_ad": 2500.0,
+      "expected_price_chat": 2500.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": false,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "return_policy"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_31",
+    "title": "Smart Watch: Full Advance Demand vs Zero Advance Ad (English)",
+    "category": "contradiction_advance",
+    "language": "english",
+    "mode": "ad_chat",
+    "advertisement_text": "Ultra Smartwatch 8. Price 1800 BDT. Zero advance payment required, pay on delivery.",
+    "seller_chat_text": "Hi, price is 1800 BDT. You must pay 100% full advance through bKash before we process shipping.",
+    "expected": {
+      "expected_price_ad": 1800.0,
+      "expected_price_chat": 1800.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": true,
+      "expected_advance_amount": 1800.0,
+      "expected_advance_purpose": "FULL_PRODUCT_PAYMENT",
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "advance_payment"
+      ],
+      "expected_payment_warnings": [
+        "ADVANCE_FULL_PAYMENT"
+      ]
+    }
+  },
+  {
+    "id": "holdout_32",
+    "title": "Wireless Earbuds: Unspecified Advance Demanded (Mixed)",
+    "category": "advance_unspecified",
+    "language": "mixed",
+    "mode": "ad_chat",
+    "advertisement_text": "Original TWS Airbuds. মূল্য ৯৫০ টাকা। সারা দেশে ক্যাশ অন ডেলিভারি। 1 year replacement warranty.",
+    "seller_chat_text": "দাম ৯৫০ টাকা। অর্ডার কনফার্ম করতে ২৫০ টাকা অগ্রিম বিকাশ করতে হবে। বাকি টাকা ডেলিভারির সময়।",
+    "expected": {
+      "expected_price_ad": 950.0,
+      "expected_price_chat": 950.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 250.0,
+      "expected_advance_purpose": "UNSPECIFIED",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_UNSPECIFIED_PURPOSE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_33",
+    "title": "Handloom Saree: Delivery Free Contradiction (Bangla)",
+    "category": "contradiction_delivery",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "খাঁটি তাঁতের সুতি শাড়ি। আকর্ষণীয় মূল্য ১১৫০ টাকা। সম্পূর্ণ ডেলিভারি ফ্রি সারা বাংলাদেশে। ক্যাশ অন ডেলিভারি।",
+    "seller_chat_text": "শাড়ির দাম ১১৫০ টাকা। কোনো ফ্রি ডেলিভারি নেই, ডেলিভারি চার্জ ১৫০ টাকা আলাদা দিতে হবে।",
+    "expected": {
+      "expected_price_ad": 1150.0,
+      "expected_price_chat": 1150.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "delivery_conditions"
+      ],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_34",
+    "title": "Fitness Band: COD Denial Due to Courier (Banglish)",
+    "category": "contradiction_cod",
+    "language": "banglish",
+    "mode": "ad_chat",
+    "advertisement_text": "Smart Fitness Band with heart rate sensor. Price 850 taka. Cash on delivery available.",
+    "seller_chat_text": "Price 850 tk. Courier problem er karone cash on delivery bondho. Shob taka advance bkash korte hobe.",
+    "expected": {
+      "expected_price_ad": 850.0,
+      "expected_price_chat": 850.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": false,
+      "expected_advance_required": true,
+      "expected_advance_amount": 850.0,
+      "expected_advance_purpose": "FULL_PRODUCT_PAYMENT",
+      "expected_return_available": null,
+      "has_contradiction": true,
+      "contradiction_fields": [
+        "cod_availability"
+      ],
+      "expected_payment_warnings": [
+        "ADVANCE_FULL_PAYMENT",
+        "COD_DENIED_OR_CONFLICT"
+      ]
+    }
+  },
+  {
+    "id": "holdout_35",
+    "title": "Induction Cooker: Aligned COD and Price (English)",
+    "category": "consistent_english",
+    "language": "english",
+    "mode": "ad_chat",
+    "advertisement_text": "Touch Control Induction Cooker 2200W. Price 3200 BDT. Cash on delivery available inside Dhaka. 1 year service warranty.",
+    "seller_chat_text": "The cooker is 3200 BDT. Cash on delivery is available in Dhaka with 100 BDT delivery charge.",
+    "expected": {
+      "expected_price_ad": 3200.0,
+      "expected_price_chat": 3200.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_36",
+    "title": "Polarized Sunglasses: Courier Delivery Advance (Bangla)",
+    "category": "advance_delivery_charge",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "পোলারাইজড সানগ্লাস ইউভি প্রটেকশন। অফার মূল্য ৬৫০ টাকা। সারা দেশে ক্যাশ অন ডেলিভারি।",
+    "seller_chat_text": "সানগ্লাসের দাম ৬৫০ টাকা। কুরিয়ার চার্জ ১০০ টাকা অগ্রিম বিকাশ করতে হবে। বাকি ৫৫০ টাকা ডেলিভারির সময় দিবেন।",
+    "expected": {
+      "expected_price_ad": 650.0,
+      "expected_price_chat": 650.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 100.0,
+      "expected_advance_purpose": "DELIVERY_CHARGE",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_DELIVERY_CHARGE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_37",
+    "title": "Power Bank: Full Payment Advance Demanded (Mixed)",
+    "category": "advance_full_payment",
+    "language": "mixed",
+    "mode": "ad_chat",
+    "advertisement_text": "Fast Charging Power Bank 20000mAh. মূল্য ১৬৫০ টাকা। Cash on delivery প্রযোজ্য। 6 months warranty.",
+    "seller_chat_text": "দাম ১৬৫০ টাকা। সম্পূর্ণ টাকা আগে বিকাশ করতে হবে, অগ্রিম ছাড়া ডেলিভারি দেওয়া যাবে না।",
+    "expected": {
+      "expected_price_ad": 1650.0,
+      "expected_price_chat": 1650.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": true,
+      "expected_advance_amount": 1650.0,
+      "expected_advance_purpose": "FULL_PRODUCT_PAYMENT",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_FULL_PAYMENT"
+      ]
+    }
+  },
+  {
+    "id": "holdout_38",
+    "title": "CCTV Camera Set: Package vs Single Unit (Banglish)",
+    "category": "conditional_combo",
+    "language": "banglish",
+    "mode": "ad_chat",
+    "advertisement_text": "Full CCTV camera package 4 cameras with DVR. Price 11500 taka combo pack. Cash on delivery all BD.",
+    "seller_chat_text": "1 piece single camera 2800 taka. 4 tar combo package 11500 taka. Konta nite chan?",
+    "expected": {
+      "expected_price_ad": 11500.0,
+      "expected_price_chat": 2800.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_39",
+    "title": "Hair Trimmer: Checking Warranty vs Extended Warranty (Bangla)",
+    "category": "conditional_warranty",
+    "language": "bangla",
+    "mode": "ad_chat",
+    "advertisement_text": "প্রফেশনাল হেয়ার ট্রিমার। মূল্য ৮৫০ টাকা। ক্যাশ অন ডেলিভারি। ৬ মাসের সার্ভিস ওয়ারেন্টি।",
+    "seller_chat_text": "ট্রিমারের দাম ৮৫০ টাকা। পণ্য হাতে পেয়ে ৭ দিন চেকিং ওয়ারেন্টি পাবেন, এর পর সার্ভিস ওয়ারেন্টির জন্য সেন্টারে যোগাযোগ করতে হবে।",
+    "expected": {
+      "expected_price_ad": 850.0,
+      "expected_price_chat": 850.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": null,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_40",
+    "title": "Organic Green Tea: Aligned Promises (English)",
+    "category": "consistent_english",
+    "language": "english",
+    "mode": "ad_chat",
+    "advertisement_text": "Organic Sylhet Green Tea 250g. Price 450 BDT. Cash on delivery available across Bangladesh. 7 days exchange policy.",
+    "seller_chat_text": "Green tea is 450 BDT. Cash on delivery is available, you can exchange within 7 days if package is unopened.",
+    "expected": {
+      "expected_price_ad": 450.0,
+      "expected_price_chat": 450.0,
+      "expected_cod_ad": true,
+      "expected_cod_chat": true,
+      "expected_advance_required": null,
+      "expected_advance_amount": null,
+      "expected_advance_purpose": null,
+      "expected_return_available": true,
+      "has_contradiction": false,
+      "contradiction_fields": [],
+      "expected_payment_warnings": []
+    }
+  },
+  {
+    "id": "holdout_41",
+    "title": "Bedsheet Set: Ad-only Courier Advance (Mixed)",
+    "category": "ad_only_advance",
+    "language": "mixed",
+    "mode": "ad_only",
+    "advertisement_text": "King Size Cotton Bedsheet. অফার প্রাইস ১২৫০ টাকা। Cash on delivery available. কুরিয়ার চার্জ ১৫০ টাকা অগ্রিম বিকাশ করতে হবে।",
+    "expected": {
+      "expected_price_ad": 1250.0,
+      "expected_cod_ad": true,
+      "expected_advance_required": true,
+      "expected_advance_amount": 150.0,
+      "expected_advance_purpose": "DELIVERY_CHARGE",
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "missing_critical_fields": [],
+      "expected_payment_warnings": [
+        "ADVANCE_DELIVERY_CHARGE"
+      ]
+    }
+  },
+  {
+    "id": "holdout_42",
+    "title": "Winter Hoodie: Ad-only Missing Delivery and Advance (Bangla)",
+    "category": "ad_only_missing_info",
+    "language": "bangla",
+    "mode": "ad_only",
+    "advertisement_text": "প্রিমিয়াম কোয়ালিটি উইন্টার হুডি। বিশেষ ছাড়ে মূল্য ৯৫০ টাকা। সাইজ M, L, XL, XXL পাওয়া যাচ্ছে। স্টক সীমিত।",
+    "expected": {
+      "expected_price_ad": 950.0,
+      "expected_cod_ad": null,
+      "expected_advance_required": null,
+      "expected_return_available": null,
+      "has_contradiction": false,
+      "missing_critical_fields": [
+        "cod",
+        "return_policy"
+      ],
+      "expected_payment_warnings": []
+    }
+  }
+]

@@ -200,7 +200,10 @@ class AdAnalyzer:
         payment_considerations: List[PaymentWarning] = []
 
         if claims.advance_payment_required and claims.advance_payment_evidence:
-            if claims.advance_payment_purpose == "full_price" or (
+            norm_purpose = (claims.advance_payment_purpose or "").upper()
+            amt_str = f"৳{claims.advance_payment_amount:,.2f}" if claims.advance_payment_amount else "an unspecified amount"
+
+            if norm_purpose in ("FULL_PRODUCT_PAYMENT", "FULL_PRICE") or (
                 claims.price and claims.advance_payment_amount and abs(claims.advance_payment_amount - claims.price) < 1.0
             ):
                 payment_considerations.append(
@@ -216,44 +219,67 @@ class AdAnalyzer:
                     )
                 )
                 buyer_questions.append("আমি কি সম্পূর্ণ মূল্য অগ্রিম না দিয়ে শুধুমাত্র কুরিয়ার চার্জ অগ্রিম দিয়ে বাকি টাকা প্রোডাক্ট হাতে পেয়ে দিতে পারি?")
-            elif claims.advance_payment_amount and claims.advance_payment_amount <= 250.0:
+
+            elif norm_purpose in ("DELIVERY_CHARGE",):
                 payment_considerations.append(
                     PaymentWarning(
                         type=PaymentWarningType.ADVANCE_DELIVERY_CHARGE.value,
                         severity="info",
                         supporting_evidence=claims.advance_payment_evidence,
                         explanation=(
-                            f"The ad states an advance of ৳{claims.advance_payment_amount:,.2f}, which aligns with normal courier "
-                            "delivery charges in Bangladesh. Sellers commonly request courier fees in advance to guard against uncollected parcels."
+                            f"The ad explicitly requests {amt_str} advance for courier delivery charges. "
+                            "Sellers commonly request delivery fees in advance to guard against uncollected parcels. "
+                            "While common, advance payment of freight does not guarantee merchant legitimacy."
                         ),
                         suggested_buyer_action="অগ্রিম কুরিয়ার চার্জ পাঠানোর জন্য অফিসিয়াল মার্চেন্ট নম্বর বা ব্যাংক একাউন্ট ব্যবহার করুন।",
                     )
                 )
                 buyer_questions.append("অগ্রিম কুরিয়ার চার্জ পাঠানোর জন্য আপনাদের কি অফিসিয়াল বিকাশ/নগদ মার্চেন্ট নম্বর বা পেমেন্ট লিংক আছে?")
-            elif claims.advance_payment_amount and claims.advance_payment_amount > 250.0:
+
+            elif norm_purpose in ("BOOKING_FEE", "BOOKING"):
                 payment_considerations.append(
                     PaymentWarning(
-                        type=PaymentWarningType.HIGH_ADVANCE_AMOUNT.value,
+                        type=PaymentWarningType.ADVANCE_BOOKING_FEE.value,
                         severity="caution",
                         supporting_evidence=claims.advance_payment_evidence,
                         explanation=(
-                            f"The requested advance payment (৳{claims.advance_payment_amount:,.2f}) exceeds typical courier delivery charges. "
-                            "Advance sums beyond freight fees increase consumer financial exposure."
+                            f"The ad requests an advance booking/reservation fee of {amt_str}. "
+                            "Unlike third-party courier delivery fees, a booking fee is retained by the seller before shipment."
                         ),
-                        suggested_buyer_action="অগ্রিম টাকার পরিমাণ সীমিত করে শুধুমাত্র প্রকৃত কুরিয়ার চার্জ (৳১০০–৳২০০) দেওয়ার প্রস্তাব দিন।",
+                        suggested_buyer_action="অর্ডার বাতিল বা ডেলিভারিতে বিলম্ব হলে এই বুকিং ফি ফেরতযোগ্য (refundable) কিনা তা চ্যাটে নিশ্চিত করুন।",
                     )
                 )
-                buyer_questions.append("অগ্রিম টাকার পরিমাণ কি কমানো সম্ভব? ডেলিভারি চার্জের অতিরিক্ত টাকা আমি কুরিয়ারের কাছে পরিশোধ করতে চাই।")
+                buyer_questions.append("পণ্য ডেলিভারি পেতে দেরি হলে বা কোনো কারণে অর্ডার বাতিল হলে এই বুকিং ফি কি সম্পূর্ণ ফেরতযোগ্য?")
+
+            elif norm_purpose in ("PARTIAL_PRODUCT_PAYMENT", "PARTIAL"):
+                payment_considerations.append(
+                    PaymentWarning(
+                        type=PaymentWarningType.ADVANCE_PARTIAL_PAYMENT.value,
+                        severity="caution",
+                        supporting_evidence=claims.advance_payment_evidence,
+                        explanation=(
+                            f"The ad requests a partial product payment of {amt_str} in advance. "
+                            "Paying a portion of the product cost before receiving the item increases buyer exposure."
+                        ),
+                        suggested_buyer_action="বাকি কত টাকা ডেলিভারির সময় দিতে হবে তার পরিষ্কার হিসাব নিন এবং মানি রিসিট বা ইনভয়েস সংগ্রহ করুন।",
+                    )
+                )
+                buyer_questions.append("অগ্রিম দেওয়ার পর ডেলিভারির সময় আর কত টাকা দিতে হবে? ইনভয়েসে কি অগ্রিম টাকার উল্লেখ থাকবে?")
+
             else:
                 payment_considerations.append(
                     PaymentWarning(
-                        type=PaymentWarningType.ADVANCE_DELIVERY_CHARGE.value,
+                        type=PaymentWarningType.ADVANCE_UNSPECIFIED_PURPOSE.value,
                         severity="caution",
                         supporting_evidence=claims.advance_payment_evidence,
-                        explanation="Advance payment is indicated, but the exact amount is omitted.",
-                        suggested_buyer_action="অগ্রিম কত টাকা এবং কী বাবদ পাঠাতে হবে তা চ্যাটে পরিষ্কারভাবে জেনে নিন।",
+                        explanation=(
+                            f"The advertisement requests an advance payment of {amt_str}, but does not explicitly specify what it covers "
+                            "(e.g., courier delivery charge vs. booking fee vs. product price)."
+                        ),
+                        suggested_buyer_action="অগ্রিম টাকাটি কুরিয়ার চার্জ বাবদ নাকি পণ্যের মূল্যের অংশ, তা চ্যাটে পরিষ্কারভাবে জেনে নিন।",
                     )
                 )
+                buyer_questions.append("এই অগ্রিম টাকাটি কি শুধুমাত্র কুরিয়ার ডেলিভারি চার্জ বাবদ, নাকি পণ্যের মূল্যের অংশ?")
 
         if claims.cod_available is False:
             payment_considerations.append(
@@ -306,7 +332,7 @@ class AdAnalyzer:
                 UnifiedFinding(
                     claim_type="price",
                     field_label="Product Listed Price",
-                    status=UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.STATED_CLAIM,
                     observed_value=claims.price,
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.price_evidence,
@@ -339,7 +365,7 @@ class AdAnalyzer:
                 UnifiedFinding(
                     claim_type="delivery_charge",
                     field_label="Delivery Fee & Shipping",
-                    status=UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.STATED_CLAIM,
                     observed_value=claims.delivery_conditions,
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.delivery_evidence,
@@ -372,7 +398,7 @@ class AdAnalyzer:
                 UnifiedFinding(
                     claim_type="cod",
                     field_label="Cash on Delivery (COD)",
-                    status=UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.STATED_CLAIM,
                     observed_value="Available",
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.cod_evidence,
@@ -388,7 +414,7 @@ class AdAnalyzer:
                 UnifiedFinding(
                     claim_type="cod",
                     field_label="Cash on Delivery (COD)",
-                    status=UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.STATED_CLAIM,
                     observed_value="Unavailable",
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.cod_evidence,
@@ -417,23 +443,24 @@ class AdAnalyzer:
 
         # Advance payment finding
         if claims.advance_payment_required is True:
+            adv_sev = "info" if claims.advance_payment_purpose == "DELIVERY_CHARGE" else ("warning" if claims.advance_payment_purpose == "FULL_PRODUCT_PAYMENT" else "caution")
             findings.append(
                 UnifiedFinding(
                     claim_type="advance_payment",
                     field_label="Advance Payment Requirement",
-                    status=UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.STATED_CLAIM,
                     observed_value=claims.advance_payment_amount or "Required",
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.advance_payment_evidence,
                     retrieval_date=now_iso,
                     verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
                     explanation=(
-                        f"Advance payment required: ৳{claims.advance_payment_amount:,.2f}"
+                        f"Advance payment required: ৳{claims.advance_payment_amount:,.2f} ({claims.advance_payment_purpose or 'UNSPECIFIED'})"
                         if claims.advance_payment_amount
-                        else "Advance payment is required."
+                        else f"Advance payment is required ({claims.advance_payment_purpose or 'UNSPECIFIED'})."
                     ),
-                    severity="medium" if (claims.advance_payment_amount and claims.advance_payment_amount <= 250) else "high",
-                    limitations="Verify whether advance is limited to courier charges.",
+                    severity=adv_sev,
+                    limitations=f"Advance payment stated for {claims.advance_payment_purpose or 'UNSPECIFIED'}; verify recipient credentials before transferring.",
                 )
             )
 
@@ -443,7 +470,7 @@ class AdAnalyzer:
                 UnifiedFinding(
                     claim_type="return_policy",
                     field_label="Return & Replacement Policy",
-                    status=UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.STATED_CLAIM,
                     observed_value=claims.return_policy_terms or "Available",
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.return_policy_evidence,
@@ -459,7 +486,7 @@ class AdAnalyzer:
                 UnifiedFinding(
                     claim_type="return_policy",
                     field_label="Return & Replacement Policy",
-                    status=UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.STATED_CLAIM,
                     observed_value="Denied (Final Sale)",
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.return_policy_evidence,
@@ -494,7 +521,7 @@ class AdAnalyzer:
                 UnifiedFinding(
                     claim_type="warranty",
                     field_label="Warranty Coverage",
-                    status=UnifiedFindingStatus.AMBIGUOUS if is_ambiguous else UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.AMBIGUOUS if is_ambiguous else UnifiedFindingStatus.STATED_CLAIM,
                     observed_value=dur,
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.warranty_evidence,
@@ -510,7 +537,7 @@ class AdAnalyzer:
                 UnifiedFinding(
                     claim_type="warranty",
                     field_label="Warranty Coverage",
-                    status=UnifiedFindingStatus.AGREEMENT,
+                    status=UnifiedFindingStatus.STATED_CLAIM,
                     observed_value="No Warranty",
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.warranty_evidence,

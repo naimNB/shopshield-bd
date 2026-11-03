@@ -76,7 +76,12 @@ CRITICAL RULES:
 6. For Advance Payment:
    - advance_payment_required: true if any advance payment is required.
    - advance_payment_amount: numerical amount if specified (e.g. 150).
-   - advance_payment_purpose: e.g. "delivery_charge", "booking", "full_price".
+   - advance_payment_purpose: MUST be strictly one of:
+     * 'DELIVERY_CHARGE': only if context explicitly states advance is for delivery/courier/shipping/freight.
+     * 'BOOKING_FEE': only if context explicitly states advance is a booking/reservation fee.
+     * 'PARTIAL_PRODUCT_PAYMENT': only if context explicitly states partial payment toward product price.
+     * 'FULL_PRODUCT_PAYMENT': if 100% full payment is demanded before dispatch.
+     * 'UNSPECIFIED': whenever the seller requests an advance without explicitly explaining what it covers (e.g. '150 taka advance', 'টাকা আগে বিকাশ'). NEVER guess or infer purpose from amount alone!
 7. For Return/Replacement:
    - return_policy_available: true if return/replacement is offered.
    - return_policy_available: false if explicitly "no return" or "ফেরত নেই".
@@ -343,6 +348,20 @@ class AIExtractorService:
 
         # 2. Price pattern (avoiding delivery charges, advance fees, discounts)
         BANGLA_DIGITS_MAP = str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789")
+
+        def _get_sentence_clause(txt: str, match_obj) -> str:
+            if not match_obj:
+                return ""
+            start = max(txt.rfind("।", 0, match_obj.start()), txt.rfind(".", 0, match_obj.start()), txt.rfind("\n", 0, match_obj.start()))
+            start = 0 if start == -1 else start + 1
+            end = len(txt)
+            for delim in ("।", ".", "\n", "!", "?"):
+                pos = txt.find(delim, match_obj.end())
+                if pos != -1 and pos < end:
+                    end = pos
+            res = txt[start:end].strip()
+            return res if res else match_obj.group(0).strip()
+
         clauses = re.split(r"(?<=\D)\.(?=\s|$)|[।\n\r;!?]+", text)
         for clause in clauses:
             clause_str = clause.strip()
@@ -359,7 +378,7 @@ class AIExtractorService:
             elif m2 and not is_delivery_or_adv_clause:
                 pre_start = max(0, m2.start() - 25)
                 context = clause_str[pre_start:m2.start()].lower()
-                if not any(k in context for k in ("delivery", "ডেলিভারি", "charge", "চার্জ", "advance", "অগ্রিম", "booking", "বুকিং", "fee", "ফি")):
+                if not re.search(r"\b(delivery|charge|advance|booking|fee)\b|(?:ডেলিভারি|চার্জ|অগ্রিম|বুকিং|ফি)", context):
                     cand = m2
             if cand:
                 raw_num = cand.group(1).translate(BANGLA_DIGITS_MAP).replace(",", "")
@@ -367,18 +386,18 @@ class AIExtractorService:
                     val = float(raw_num)
                     if 10.0 <= val <= 10_000_000.0:
                         claims.price = val
-                        claims.price_evidence = cand.group(0).strip()
+                        claims.price_evidence = clause_str
                         break
                 except ValueError:
                     pass
 
         # 3. Cash on Delivery (COD) - Check denial phrases FIRST
         COD_DENIAL_REGEX = re.compile(
-            r"(?:no\s+cod|no\s+cash\s+on\s+delivery|cash\s+on\s+delivery\s+(?:is\s+)?(?:not\s+available|unavailable|bondho\b|off\b)|cod\s+(?:is\s+)?(?:unavailable|bondho\b|off\b)|ক্যাশ\s*অন\s*ডেলিভারি[^\n\r।.;!?]{0,35}(?:নেই|না|নয়|নয়|বন্ধ|হবে\s*না)|(?:cash\s*on\s*delivery|cod)[^\n\r।.;!?]{0,35}(?:bondho|off|hobe\s*na|hobena)|ক্যাশ\s*অন\s*ডেলিভারি\s*দেওয়া\s*যাবে\s*না|কোনো\s*ক্যাশ\s*অন\s*ডেলিভারি\s*নেই)",
+            r"(?:no\s+cod|no\s+cash\s+on\s+delivery|cash\s+on\s+delivery\s+(?:is\s+)?(?:\w+\s+)?(?:not\s+available|unavailable|bondho\b|off\b|cancelled|suspended)|cod\s+(?:is\s+)?(?:\w+\s+)?(?:unavailable|bondho\b|off\b)|ক্যাশ\s*অন\s*ডেলিভারি[^\n\r।.;!?]{0,35}(?:নেই|না|নয়|নয়|বন্ধ|হবে\s*না)|(?:cash\s*on\s*delivery|cod)[^\n\r।.;!?]{0,35}(?:bondho|off|hobe\s*na|hobena)|ক্যাশ\s*অন\s*ডেলিভারি\s*দেওয়া\s*যাবে\s*না|কোনো\s*ক্যাশ\s*অন\s*ডেলিভারি\s*নেই)",
             re.IGNORECASE,
         )
         COD_POSITIVE_REGEX = re.compile(
-            r"(?:cash\s+on\s+delivery\s+(?:is\s+)?available|cod\s+available|ক্যাশ\s*অন\s*ডেলিভারি[^\n\r।.;!?]{0,35}(?:হবে|আছে|পাবেন|সুবিধা|প্রযোজ্য)|পণ্য\s*হাতে\s*পেয়ে\s*মূল্য\s*পরিশোধ|ক্যাশ\s*অন\s*ডেলিভারিতে\s*নিতে\s*পারবেন|cod\s+te\s+diben|cod\s+paben|cod\s+hobe)",
+            r"(?:cash\s+on\s+delivery\s+(?:is\s+)?available|cod\s+available|ক্যাশ\s*অন\s*ডেলিভারি[^\n\r।.;!?]{0,35}(?:হবে|আছে|পাবেন|সুবিধা|প্রযোজ্য)|পণ্য\s*হাতে\s*পেয়ে[^\n\r।.;!?]{0,25}(?:মূল্য|টাকা|বিল|পরিশোধ)|ক্যাশ\s*অন\s*ডেলিভারিতে\s*নিতে\s*পারবেন|বাকি[^\n\r।.;!?]{0,25}(?:ডেলিভারি|delivery)|baki[^\n\r।.;!?]{0,25}delivery|balance\s+on\s+delivery|pay\s+on\s+delivery|cod\s+te\s+diben|cod\s+paben|cod\s+hobe)",
             re.IGNORECASE,
         )
 
@@ -387,64 +406,104 @@ class AIExtractorService:
 
         if m_no_cod:
             claims.cod_available = False
-            claims.cod_evidence = m_no_cod.group(0).strip()
+            claims.cod_evidence = _get_sentence_clause(text, m_no_cod)
         elif m_pos_cod:
             claims.cod_available = True
-            claims.cod_evidence = m_pos_cod.group(0).strip()
-        elif re.search(r"\b(cash on delivery|payment on delivery|pay cash|ক্যাশ অন ডেলিভারি)\b", text, re.IGNORECASE):
-            m_gen = re.search(r"\b(cash on delivery|payment on delivery|pay cash|ক্যাশ অন ডেলিভারি)\b", text, re.IGNORECASE)
+            claims.cod_evidence = _get_sentence_clause(text, m_pos_cod)
+        elif re.search(r"(?:cash on delivery|payment on delivery|pay on delivery|pay cash|ক্যাশ অন ডেলিভারি)(?:\s|[.,।;!?]|$)", text, re.IGNORECASE):
+            m_gen = re.search(r"(?:cash on delivery|payment on delivery|pay on delivery|pay cash|ক্যাশ অন ডেলিভারি)(?:\s|[.,।;!?]|$)", text, re.IGNORECASE)
             start_pos = max(0, m_gen.start() - 25)
             context = text[start_pos:m_gen.start()].lower()
             if any(neg in context for neg in ("no ", "not ", "don't ", "dont ", "নেই", "না ")):
                 claims.cod_available = False
             else:
                 claims.cod_available = True
-            claims.cod_evidence = m_gen.group(0).strip()
+            claims.cod_evidence = _get_sentence_clause(text, m_gen)
 
         # 4. Advance payment
-        m_full_adv = re.search(r"(?:full\s+advance|shob\s*taka\s*advance|সব\s*টাকা\s*অগ্রিম|সম্পূর্ণ\s*(?:[^\n\r]{0,15})(?:টাকা|মূল্য|পেমেন্ট)\s*(?:আগে|অগ্রিম|বিকাশ)|full\s*payment\s*advance|100%\s*full\s*advance|shob\s*advance|সব\s*টাকা\s*বিকাশ)", text, re.IGNORECASE)
-        m_adv_after = re.search(r"(?:advance|অগ্রিম|বুকিং)(?:[^\d০-৯\n\r]{0,25})([0-9০-৯,]{2,7})", text, re.IGNORECASE)
-        m_adv_before = re.search(r"([0-9০-৯,]{2,7})\s*(?:/-|tk|taka|টাকা|bdt)?(?:[^\n\r]{0,25})(?:advance|অগ্রিম|booking|বুকিং)(?:\s|[.,।;!?]|$)", text, re.IGNORECASE)
+        m_no_adv = re.search(r"(?:no\s+advance\s+(?:needed|required|fee)|zero\s+advance|0\s*advance|অগ্রিম\s*(?:ছাড়াই?\s*(?:অর্ডার|কিনুন|নিতে|পাবেন|অর্ডার\s*করুন)|প্রয়োজন\s*নেই|লাগবে\s*না|নেই)|কোনো\s*অগ্রিম\s*(?:নেই|লাগবে\s*না|ছাড়াই)|no\s*booking\s*fee|free\s*booking)", text, re.IGNORECASE)
+        m_full_adv = re.search(r"(?:full\s+advance|shob\s*taka\s*advance|সব\s*টাকা\s*অগ্রিম|সম্পূর্ণ\s*(?:[^\d০-৯\n\r।.;!?]{0,15})(?:টাকা|মূল্য|পেমেন্ট)\s*(?:আগে|অগ্রিম|বিকাশ)|full\s*payment\s*advance|100%\s*full\s*advance|shob\s*advance|সব\s*টাকা\s*বিকাশ)", text, re.IGNORECASE)
+        m_adv_after = re.search(r"(?:advance|অগ্রিম|বুকিং)(?:[^\d০-৯\n\r।.;!?]{0,50})([0-9০-৯,]{2,7})", text, re.IGNORECASE)
+        m_adv_before = re.search(r"([0-9০-৯,]{2,7})\s*(?:/-|tk|taka|টাকা|bdt)?(?:[^\d০-৯\n\r।.;!?]{0,50})(?:advance|অগ্রিম|booking|বুকিং)(?:\s|[.,।;!?]|$)", text, re.IGNORECASE)
 
-        if m_full_adv:
+        if m_no_adv:
+            claims.advance_payment_required = False
+            claims.advance_payment_amount = 0.0
+            claims.advance_payment_evidence = m_no_adv.group(0).strip()
+        elif m_full_adv:
             claims.advance_payment_required = True
-            claims.advance_payment_purpose = "full_price"
+            claims.advance_payment_purpose = "FULL_PRODUCT_PAYMENT"
             claims.advance_payment_evidence = m_full_adv.group(0).strip()
-            # If explicit amount mentioned in full advance phrase
-            m_amt_in_full = re.search(r"([0-9০-৯,]+)", m_full_adv.group(0))
-            if m_amt_in_full:
-                try:
-                    claims.advance_payment_amount = float(m_amt_in_full.group(1).translate(BANGLA_DIGITS_MAP).replace(",", ""))
-                except ValueError:
-                    pass
-            elif claims.price:
-                claims.advance_payment_amount = claims.price
-        elif m_adv_after or m_adv_before:
-            m_target_adv = m_adv_after or m_adv_before
+            # If explicit amount mentioned in full advance phrase, excluding percentages (e.g. 100%)
+            if "%" in m_full_adv.group(0) or "percent" in m_full_adv.group(0).lower() or "শতাংশ" in m_full_adv.group(0):
+                if claims.price:
+                    claims.advance_payment_amount = claims.price
+            else:
+                m_amt_in_full = re.search(r"([0-9০-৯,]+)", m_full_adv.group(0))
+                if m_amt_in_full:
+                    try:
+                        claims.advance_payment_amount = float(m_amt_in_full.group(1).translate(BANGLA_DIGITS_MAP).replace(",", ""))
+                    except ValueError:
+                        pass
+                elif claims.price:
+                    claims.advance_payment_amount = claims.price
+        elif m_adv_before or m_adv_after:
+            if m_adv_before and m_adv_after:
+                m_target_adv = m_adv_before if m_adv_before.start() <= m_adv_after.start() else m_adv_after
+            else:
+                m_target_adv = m_adv_before or m_adv_after
             raw = m_target_adv.group(1).translate(BANGLA_DIGITS_MAP).replace(",", "")
             try:
                 amt = float(raw)
                 claims.advance_payment_required = True
                 claims.advance_payment_amount = amt
                 claims.advance_payment_evidence = m_target_adv.group(0).strip()
-                if amt <= 250.0:
-                    claims.advance_payment_purpose = "delivery_charge"
+
+                # Determine purpose strictly from contextual evidence surrounding the advance mention
+                start_ctx = max(0, m_target_adv.start() - 60)
+                end_ctx = min(len(text), m_target_adv.end() + 60)
+                ctx = text[start_ctx:end_ctx].lower()
+
+                # Check booking fee first
+                if re.search(r"(?:booking\s*fee|booking|slot|বুকিং\s*ফি|বুকিং|বুক\b|অর্ডার\s*বুক)", ctx):
+                    claims.advance_payment_purpose = "BOOKING_FEE"
+                # Check delivery/courier charge advance (must specify charge/fee/cost, NOT merely "baki taka delivery te")
+                elif re.search(r"(?:delivery|courier|shipment|shipping|ডেলিভারি|কুরিয়ার|কুরিয়ার|পার্সেল|শিপিং|পাঠানো|ডেলিভারী)\s*(?:চার্জ|ফি|খরচ|charge|fee|cost)", ctx) or re.search(r"(?:চার্জ|ফি|খরচ|charge|fee|cost)[^\n\r।.;!?]{0,15}(?:delivery|courier|shipment|shipping|ডেলিভারি|কুরিয়ার|কুরিয়ার)", ctx):
+                    claims.advance_payment_purpose = "DELIVERY_CHARGE"
+                elif re.search(r"(?:full|shob\s*taka|সম্পূর্ণ|পুরো|১০০%|100%)", ctx):
+                    claims.advance_payment_purpose = "FULL_PRODUCT_PAYMENT"
+                elif re.search(r"(?:partial|part|dam\s*er|মূল্যের\s*অংশ|অর্ধেক|আংশিক)", ctx):
+                    claims.advance_payment_purpose = "PARTIAL_PRODUCT_PAYMENT"
                 else:
-                    claims.advance_payment_purpose = "booking"
+                    claims.advance_payment_purpose = "UNSPECIFIED"
             except ValueError:
                 pass
-        elif re.search(r"\b(advance payment|অগ্রিম পেমেন্ট|advance দিতে হবে|টাকা আগে বিকাশ)\b", text, re.IGNORECASE):
-            m_gen_adv = re.search(r"\b(advance payment|অগ্রিম পেমেন্ট|advance দিতে হবে|টাকা আগে বিকাশ)\b", text, re.IGNORECASE)
+        elif re.search(r"(?:advance\s*payment|অগ্রিম\s*পেমেন্ট|advance\s*দিতে\s*হবে|টাকা\s*আগে\s*বিকাশ|অগ্রিম\s*বিকাশ|অগ্রিম\s*দিতে\s*হবে|কুরিয়ার\s*চার্জ\s*অগ্রিম|কুরিয়ার\s*চার্জ\s*অগ্রিম|pay\s+before\s+(?:dispatch|shipping|delivery)|payment\s+before\s+(?:dispatch|shipping))", text, re.IGNORECASE):
+            m_gen_adv = re.search(r"(?:advance\s*payment|অগ্রিম\s*পেমেন্ট|advance\s*দিতে\s*হবে|টাকা\s*আগে\s*বিকাশ|অগ্রিম\s*বিকাশ|অগ্রিম\s*দিতে\s*হবে|কুরিয়ার\s*চার্জ\s*অগ্রিম|কুরিয়ার\s*চার্জ\s*অগ্রিম|pay\s+before\s+(?:dispatch|shipping|delivery)|payment\s+before\s+(?:dispatch|shipping))", text, re.IGNORECASE)
             claims.advance_payment_required = True
             claims.advance_payment_evidence = m_gen_adv.group(0).strip()
+            start_ctx = max(0, m_gen_adv.start() - 60)
+            end_ctx = min(len(text), m_gen_adv.end() + 60)
+            ctx = text[start_ctx:end_ctx].lower()
+
+            if re.search(r"(?:booking\s*fee|booking|slot|বুকিং\s*ফি|বুকিং|বুক\b|অর্ডার\s*বুক)", ctx):
+                claims.advance_payment_purpose = "BOOKING_FEE"
+            elif re.search(r"(?:delivery|courier|shipment|shipping|ডেলিভারি|কুরিয়ার|কুরিয়ার|পার্সেল|শিপিং|পাঠানো|ডেলিভারী)\s*(?:চার্জ|ফি|খরচ|charge|fee|cost)", ctx) or re.search(r"(?:চার্জ|ফি|খরচ|charge|fee|cost)[^\n\r।.;!?]{0,15}(?:delivery|courier|shipment|shipping|ডেলিভারি|কুরিয়ার|কুরিয়ার)", ctx):
+                claims.advance_payment_purpose = "DELIVERY_CHARGE"
+            elif re.search(r"(?:full|shob\s*taka|সম্পূর্ণ|পুরো|১০০%|100%)", ctx):
+                claims.advance_payment_purpose = "FULL_PRODUCT_PAYMENT"
+            elif re.search(r"(?:partial|part|dam\s*er|মূল্যের\s*অংশ|অর্ধেক|আংশিক)", ctx):
+                claims.advance_payment_purpose = "PARTIAL_PRODUCT_PAYMENT"
+            else:
+                claims.advance_payment_purpose = "UNSPECIFIED"
 
         # 5. Return & Replacement policy
         RETURN_DENIAL_REGEX = re.compile(
-            r"(?:no\s+returns?|non-refundable|no\s+refunds?|all\s+sales\s+(?:are\s+)?final|রিটার্ন[^\n\r।.;!?]{0,35}(?:প্রযোজ্য\s*[নন][য়য়]|হবে\s*না|নেই)|ফেরত[^\n\r।.;!?]{0,25}নেওয়া\s*হবে\s*না|বিক্রি\s*হয়ে\s*গেলে\s*কোনো\s*রিটার্ন|কোনো\s*রিটার্ন\s*বা\s*রিপ্লেসমেন্ট\s*হবে\s*না)",
+            r"(?:no\s+returns?|non-refundable|no\s+refunds?|all\s+sales\s+(?:are\s+)?final|রিটার্ন[^\n\r।.;!?]{0,35}(?:প্রযোজ্য\s*[নন][য়য়]|হবে\s*না|নেই)|ফেরত[^\n\r।.;!?]{0,25}নেওয়া\s*হবে\s*না|বিক্রি\s*হয়ে\s*গেলে\s*কোনো\s*রিটার্ন|কোনো\s*রিটার্ন\s*বা\s*রিপ্লেসমেন্ট\s*হবে\s*না|কোনোভাবেই\s*ফেরত\s*নেওয়া\s*হবে\s*না)",
             re.IGNORECASE,
         )
         RETURN_DAYS_REGEX = re.compile(
-            r"\b([0-9০-৯]{1,2})\s*(?:days?|দিনের)\s*(?:easy\s+)?(?:return|refund|replacement|exchange|রিটার্ন|রিপ্লেসমেন্ট|এক্সচেঞ্জ|চেকিং|গ্যারান্টি|পরিবর্তনযোগ্য)\b",
+            r"\b([0-9০-৯]{1,2})\s*(?:days?|দিনের)\s*(?:easy\s+)?(?:return|refund|replacement|exchange|রিটার্ন|রিপ্লেসমেন্ট|এক্সচেঞ্জ|চেকিং|গ্যারান্টি|পরিবর্তনযোগ্য|পরিবর্তন)\b",
             re.IGNORECASE,
         )
         m_no_ret = RETURN_DENIAL_REGEX.search(text)
@@ -457,8 +516,8 @@ class AIExtractorService:
             days_str = m_ret_days.group(1).translate(BANGLA_DIGITS_MAP)
             claims.return_policy_terms = f"{days_str} days replacement/return"
             claims.return_policy_evidence = m_ret_days.group(0).strip()
-        elif re.search(r"\b(return|replacement|রিটার্ন|রিপ্লেসমেন্ট|পরিবর্তনযোগ্য)\b", text, re.IGNORECASE):
-            m_gen_ret = re.search(r"\b(return|replacement|রিটার্ন|রিপ্লেসমেন্ট|পরিবর্তনযোগ্য)\b", text, re.IGNORECASE)
+        elif re.search(r"(?:return|replacement|রিটার্ন|রিপ্লেসমেন্ট|পরিবর্তনযোগ্য|পরিবর্তন সুবিধা|এক্সচেঞ্জ সুবিধা)", text, re.IGNORECASE):
+            m_gen_ret = re.search(r"(?:return|replacement|রিটার্ন|রিপ্লেসমেন্ট|পরিবর্তনযোগ্য|পরিবর্তন সুবিধা|এক্সচেঞ্জ সুবিধা)", text, re.IGNORECASE)
             start_pos = max(0, m_gen_ret.start() - 25)
             context = text[start_pos:m_gen_ret.start()].lower()
             if any(neg in context for neg in ("no ", "not ", "নেই", "না ")):
@@ -474,7 +533,7 @@ class AIExtractorService:
             re.IGNORECASE,
         )
         WARRANTY_TERMS_REGEX = re.compile(
-            r"\b([0-9০-৯]{1,2})\s*(?:years?|months?|বছর|মাস|বছরের?|মাসের?)\s*(?:official\s+)?(?:brand\s+)?(?:service\s+)?warranty\b|\b([0-9০-৯]{1,2})\s*(?:বছরের|মাসের)\s*(?:সার্ভিস\s+)?ওয়ারেন্টি\b",
+            r"\b([0-9০-৯]{1,2})\s*(?:years?|months?|বছর|মাস|বছরের?|মাসের?)\s*(?:official\s+)?(?:brand\s+)?(?:service\s+)?warranty(?:\s|[.,।;!?]|$)|([0-9০-৯]{1,2})\s*(?:বছরের|মাসের)\s*(?:অফিসিয়াল\s+|সার্ভিস\s+)?(?:ওয়ারেন্টি|গ্যারান্টি)(?:\s|[.,।;!?]|$)",
             re.IGNORECASE,
         )
         m_no_warr = WARRANTY_DENIAL_REGEX.search(text)
@@ -486,23 +545,23 @@ class AIExtractorService:
             claims.warranty_available = True
             claims.warranty_terms = m_warr_terms.group(0).strip()
             claims.warranty_evidence = m_warr_terms.group(0).strip()
-        elif re.search(r"\b(official warranty|brand warranty|service warranty|ওয়ারেন্টি|গ্যারান্টি)\b", text, re.IGNORECASE):
-            m_gen_warr = re.search(r"\b(official warranty|brand warranty|service warranty|ওয়ারেন্টি|গ্যারান্টি)\b", text, re.IGNORECASE)
+        elif re.search(r"(?:official warranty|brand warranty|service warranty|ওয়ারেন্টি|গ্যারান্টি)(?:\s|[.,।;!?]|$)", text, re.IGNORECASE):
+            m_gen_warr = re.search(r"(?:official warranty|brand warranty|service warranty|ওয়ারেন্টি|গ্যারান্টি)(?:\s|[.,।;!?]|$)", text, re.IGNORECASE)
             claims.warranty_available = True
             claims.warranty_terms = m_gen_warr.group(0).strip()
             claims.warranty_evidence = m_gen_warr.group(0).strip()
 
         # 7. Delivery conditions
-        m_deliv = re.search(r"(?:free\s+delivery|ফ্রি\s*ডেলিভারি|delivery\s*(?:charge|fee)[^\n\r]{0,35}[0-9০-৯]{2,4}|ডেলিভারি\s*চার্জ[^\n\r]{0,35}[0-9০-৯]{2,4}|home\s+delivery|সারাদেশে\s*ডেলিভারি)", text, re.IGNORECASE)
+        m_deliv = re.search(r"(?:free\s+delivery|delivery\s+free|ফ্রি\s*ডেলিভারি|ডেলিভারি\s*ফ্রি|delivery\s*(?:charge|fee)[^\n\r]{0,35}[0-9০-৯]{2,4}|ডেলিভারি\s*চার্জ[^\n\r]{0,35}[0-9০-৯]{2,4}|home\s+delivery|সারাদেশে\s*ডেলিভারি|খুলে\s*দেখে|খুলতে\s*পারবেন\s*না|পার্সেল\s*খুলে|open[- ]box|check)", text, re.IGNORECASE)
         if m_deliv:
-            claims.delivery_conditions = m_deliv.group(0).strip()
-            claims.delivery_evidence = m_deliv.group(0).strip()
+            claims.delivery_conditions = _get_sentence_clause(text, m_deliv)
+            claims.delivery_evidence = claims.delivery_conditions
 
         # 8. Urgency & Pressure
-        m_urg = re.search(r"(?:অফার\s*সীমিত\s*সময়ের\s*জন্য|limited\s+time\s+offer|hurry|দ্রুত\s*অর্ডার\s*করুন|stock\s+limited|অফার\s*শেষ\s*হয়ে\s*যাবে|order\s+fast)", text, re.IGNORECASE)
+        m_urg = re.search(r"(?:অফার\s*সীমিত\s*সময়ের\s*জন্য|limited\s+time\s+offer|hurry|দ্রুত\s*অর্ডার\s*করুন|stock\s+limited|অফার\s*শেষ\s*হয়ে\s*যাবে|অফার\s*শেষ\s*হয়ে\s*গেছে|offer\s+expired|expired|order\s+fast)", text, re.IGNORECASE)
         if m_urg:
-            claims.urgency_or_pressure = m_urg.group(0).strip()
-            claims.urgency_evidence = m_urg.group(0).strip()
+            claims.urgency_or_pressure = _get_sentence_clause(text, m_urg)
+            claims.urgency_evidence = claims.urgency_or_pressure
 
         # Populate claims_list with SingleClaim instances
         claims.claims_list = []

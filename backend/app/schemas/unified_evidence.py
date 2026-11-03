@@ -14,13 +14,14 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, List, Optional
 import uuid
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.app.schemas.seller_history import SourceType, VerificationStatus
 
 
 class UnifiedFindingStatus(str, Enum):
     """Standardized classification of buyer-facing findings across all evidence sources."""
+    STATED_CLAIM = "STATED_CLAIM"
     AGREEMENT = "AGREEMENT"
     CONTRADICTION = "CONTRADICTION"
     MISSING_INFORMATION = "MISSING_INFORMATION"
@@ -72,6 +73,32 @@ class UnifiedFinding(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="ISO 8601 timestamp when ShopShield analyzed or retrieved this evidence",
     )
+
+    @field_validator("retrieval_date", mode="before")
+    @classmethod
+    def validate_retrieval_date(cls, v: Any) -> str:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return datetime.now(timezone.utc).isoformat()
+        if isinstance(v, datetime):
+            if v.tzinfo is None:
+                v = v.replace(tzinfo=timezone.utc)
+            return v.isoformat()
+        if isinstance(v, str):
+            clean = v.strip()
+            # Normalize trailing Z to UTC offset for fromisoformat compatibility
+            ts = clean.replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(ts)
+                # Ensure timestamp has valid year (>= 2000)
+                if dt.year < 2000:
+                    raise ValueError("Timestamp year is implausible")
+                return clean
+            except Exception as e:
+                raise ValueError(
+                    f"retrieval_date must be a valid UTC ISO-8601 timestamp string (e.g. '2026-11-03T11:45:00Z'). "
+                    f"Evidence text or non-timestamp values are strictly prohibited: {clean!r}"
+                ) from e
+        raise ValueError(f"retrieval_date must be a string or datetime, received {type(v).__name__}")
     verification_status: VerificationStatus = Field(
         VerificationStatus.USER_PROVIDED_UNVERIFIED,
         description="Verification grade: USER_PROVIDED_UNVERIFIED, INDEPENDENTLY_RETRIEVED, UNAVAILABLE, NEEDS_REVIEW",

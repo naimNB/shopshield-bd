@@ -5,11 +5,11 @@ Supports evidence-based Facebook Page Transparency extraction, Internet Archive
 Strictly avoids fake trust scores, scam probabilities, or subjective fraud accusations.
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import List, Optional, Any
 import uuid
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SourceType(str, Enum):
@@ -87,6 +87,30 @@ class EvidenceFinding(BaseModel):
     source_url: Optional[str] = Field(None, description="Direct URL to independent archive snapshot or source if available")
     observation_date: Optional[str] = Field(None, description="Date associated with the historical observation (YYYY-MM-DD or text)")
     retrieval_date: str = Field(..., description="ISO 8601 timestamp of when ShopShield BD extracted/retrieved this finding")
+
+    @field_validator("retrieval_date", mode="before")
+    @classmethod
+    def validate_retrieval_date(cls, v: Any) -> str:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return datetime.now(timezone.utc).isoformat()
+        if isinstance(v, datetime):
+            if v.tzinfo is None:
+                v = v.replace(tzinfo=timezone.utc)
+            return v.isoformat()
+        if isinstance(v, str):
+            clean = v.strip()
+            ts = clean.replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(ts)
+                if dt.year < 2000:
+                    raise ValueError("Timestamp year is implausible")
+                return clean
+            except Exception as e:
+                raise ValueError(
+                    f"retrieval_date must be a valid UTC ISO-8601 timestamp string (e.g. '2026-11-03T11:45:00Z'). "
+                    f"Evidence text or non-timestamp values are strictly prohibited: {clean!r}"
+                ) from e
+        raise ValueError(f"retrieval_date must be a string or datetime, received {type(v).__name__}")
     evidence_text: Optional[str] = Field(None, description="Exact verbatim text or snippet supporting this finding")
     verification_status: VerificationStatus = Field(..., description="Verification status of the finding")
     evidence_confidence: Optional[str] = Field(None, description="Objective confidence rating: INDEPENDENT_ARCHIVE_VERIFIED, USER_SCREENSHOT_EXTRACTED, etc.")

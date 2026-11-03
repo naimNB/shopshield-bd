@@ -5,6 +5,7 @@ terms, and generates practical buyer verification questions in clear Bangla.
 Crucially: An advance bKash or Nagad payment request does NOT imply fraud.
 """
 
+from datetime import datetime, timezone
 from typing import List, Tuple, Any
 from backend.app.schemas.claims import ExtractedClaims
 from backend.app.schemas.comparison import ComparisonItem, ContradictionStatus
@@ -30,14 +31,16 @@ class PaymentRulesEngine:
         advance_required = chat_claims.advance_payment_required or ad_claims.advance_payment_required
         advance_purpose = chat_claims.advance_payment_purpose or ad_claims.advance_payment_purpose
         evidence = chat_claims.advance_payment_evidence or ad_claims.advance_payment_evidence
-
         product_price = chat_claims.price or ad_claims.price
 
         if advance_required and evidence:
-            if advance_purpose == "full_price" or (
+            norm_purpose = (advance_purpose or "").upper()
+            amt_str = f"৳{advance_amount:,.2f}" if advance_amount else "an unspecified amount"
+
+            # 1a. Full product payment requested upfront
+            if norm_purpose in ("FULL_PRODUCT_PAYMENT", "FULL_PRICE") or (
                 product_price and advance_amount and abs(advance_amount - product_price) < 1.0
             ):
-                # Full advance requested
                 warnings.append(
                     PaymentWarning(
                         type=PaymentWarningType.ADVANCE_FULL_PAYMENT.value,
@@ -45,7 +48,7 @@ class PaymentRulesEngine:
                         supporting_evidence=evidence,
                         explanation=(
                             "The seller is requesting 100% full payment in advance before shipment. "
-                            "In social media e-commerce, full advance payment carries substantial financial risk."
+                            "In social media e-commerce, paying the full purchase price before receiving the item carries substantial financial risk."
                         ),
                         suggested_buyer_action=(
                             "অনুরোধ করুন যেন শুধুমাত্র কুরিয়ার ডেলিভারি চার্জ অগ্রিম নিয়ে বাকি টাকা ক্যাশ অন ডেলিভারিতে (COD) পাঠানো হয়।"
@@ -53,20 +56,20 @@ class PaymentRulesEngine:
                     )
                 )
                 buyer_questions.append(
-                    "আমি কি শুধুমাত্র ডেলিভারি চার্জ অগ্রিম দিয়ে বাকি টাকা প্রোডাক্ট হাতে পেয়ে পরিশোধ করতে পারি?"
+                    "আমি কি সম্পূর্ণ মূল্য অগ্রিম না দিয়ে শুধুমাত্র কুরিয়ার চার্জ অগ্রিম দিয়ে বাকি টাকা প্রোডাক্ট হাতে পেয়ে পরিশোধ করতে পারি?"
                 )
 
-            elif advance_amount and advance_amount <= 250.0:
-                # Standard delivery charge advance (100 - 250 BDT) -> Normal BD commerce practice
+            # 1b. Advance explicitly for delivery/courier charge
+            elif norm_purpose in ("DELIVERY_CHARGE",):
                 warnings.append(
                     PaymentWarning(
                         type=PaymentWarningType.ADVANCE_DELIVERY_CHARGE.value,
                         severity="info",
                         supporting_evidence=evidence,
                         explanation=(
-                            f"The seller requested ৳{advance_amount:,.2f} advance, which corresponds to standard courier "
-                            "delivery charges in Bangladesh. Bangladeshi online shops commonly request delivery fees in advance "
-                            "to safeguard against uncollected returns. This is normal practice and does not imply fraud."
+                            f"The seller explicitly requested {amt_str} advance for courier delivery charges. "
+                            "In Bangladesh, online shops commonly request delivery fees in advance to safeguard against uncollected returns. "
+                            "This is standard courier delivery charges practice and does not imply fraud, though buyers should still verify seller authenticity."
                         ),
                         suggested_buyer_action=(
                             "কুরিয়ার চার্জ অগ্রিম পাঠানোর আগে বিক্রেতার ফেসবুক পেজ/শপের রিভিউ দেখুন এবং সম্ভব হলে অফিসিয়াল মার্চেন্ট একাউন্টে পেমেন্ট করুন।"
@@ -77,35 +80,63 @@ class PaymentRulesEngine:
                     "অগ্রিম কুরিয়ার চার্জ পাঠানোর জন্য আপনাদের কি অফিসিয়াল বিকাশ/নগদ মার্চেন্ট নম্বর বা পেমেন্ট লিংক আছে?"
                 )
 
-            elif advance_amount and advance_amount > 250.0:
-                # Substantial advance (> 250 BDT)
+            # 1c. Advance explicitly for booking fee
+            elif norm_purpose in ("BOOKING_FEE", "BOOKING"):
                 warnings.append(
                     PaymentWarning(
-                        type=PaymentWarningType.HIGH_ADVANCE_AMOUNT.value,
+                        type=PaymentWarningType.ADVANCE_BOOKING_FEE.value,
                         severity="caution",
                         supporting_evidence=evidence,
                         explanation=(
-                            f"The requested advance payment (৳{advance_amount:,.2f}) exceeds standard courier delivery charges. "
-                            "Paying significant advance sums without escrow or marketplace protection increases consumer exposure."
+                            f"The seller requested an advance booking/reservation fee of {amt_str}. "
+                            "Unlike third-party courier delivery fees, a booking fee is retained by the seller before shipment."
                         ),
                         suggested_buyer_action=(
-                            "অগ্রিম টাকার পরিমাণ সীমিত করে শুধুমাত্র প্রকৃত কুরিয়ার চার্জ (৳১০০–৳২০০) দেওয়ার প্রস্তাব দিন।"
+                            "অর্ডার বাতিল বা ডেলিভারিতে বিলম্ব হলে এই বুকিং ফি ফেরতযোগ্য (refundable) কিনা তা চ্যাটে নিশ্চিত করুন।"
                         ),
                     )
                 )
                 buyer_questions.append(
-                    "অগ্রিম টাকার পরিমাণ কি কমানো সম্ভব? ডেলিভারি চার্জের অতিরিক্ত টাকা আমি কুরিয়ারের কাছে পরিশোধ করতে চাই।"
+                    "পণ্য ডেলিভারি পেতে দেরি হলে বা কোনো কারণে অর্ডার বাতিল হলে এই বুকিং ফি কি সম্পূর্ণ ফেরতযোগ্য?"
                 )
-            else:
-                # Advance required but amount unspecified
+
+            # 1d. Partial product payment
+            elif norm_purpose in ("PARTIAL_PRODUCT_PAYMENT", "PARTIAL"):
                 warnings.append(
                     PaymentWarning(
-                        type=PaymentWarningType.ADVANCE_DELIVERY_CHARGE.value,
+                        type=PaymentWarningType.ADVANCE_PARTIAL_PAYMENT.value,
                         severity="caution",
                         supporting_evidence=evidence,
-                        explanation="The seller requested an advance payment without clearly stating the exact amount or purpose.",
-                        suggested_buyer_action="অগ্রিম কত টাকা এবং কী বাবদ পাঠাতে হবে তা চ্যাটে পরিষ্কারভাবে জেনে নিন।",
+                        explanation=(
+                            f"The seller requested a partial product payment of {amt_str} in advance. "
+                            "Paying a portion of the product cost before receiving the item increases buyer exposure relative to courier-only advance."
+                        ),
+                        suggested_buyer_action=(
+                            "বাকি কত টাকা ডেলিভারির সময় দিতে হবে তার পরিষ্কার হিসাব নিন এবং মানি রিসিট বা ইনভয়েস সংগ্রহ করুন।"
+                        ),
                     )
+                )
+                buyer_questions.append(
+                    "অগ্রিম দেওয়ার পর ডেলিভারির সময় আর কত টাকা দিতে হবে? ইনভয়েসে কি অগ্রিম টাকার উল্লেখ থাকবে?"
+                )
+
+            # 1e. Purpose is unspecified in source context
+            else:
+                warnings.append(
+                    PaymentWarning(
+                        type=PaymentWarningType.ADVANCE_UNSPECIFIED_PURPOSE.value,
+                        severity="caution",
+                        supporting_evidence=evidence,
+                        explanation=(
+                            f"The seller requested an advance payment of {amt_str}, but did not explicitly specify what it covers "
+                            "(e.g. courier delivery charge vs. booking fee vs. product price). "
+                            "Sending funds without a clear stated purpose leaves the remaining payment obligation ambiguous."
+                        ),
+                        suggested_buyer_action="অগ্রিম টাকাটি কুরিয়ার চার্জ বাবদ নাকি পণ্যের মূল্যের অংশ, তা চ্যাটে পরিষ্কারভাবে জেনে নিন।",
+                    )
+                )
+                buyer_questions.append(
+                    "এই অগ্রিম টাকাটি কি শুধুমাত্র কুরিয়ার ডেলিভারি চার্জ বাবদ, নাকি পণ্যের মূল্যের অংশ?"
                 )
 
         # 2. Urgency and Pressure Rules
@@ -273,16 +304,24 @@ class PaymentRulesEngine:
         from backend.app.schemas.seller_history import SourceType, VerificationStatus
 
         findings: List[UnifiedFinding] = []
-
-        status_map = {
-            ContradictionStatus.CONTRADICTION: UnifiedFindingStatus.CONTRADICTION,
-            ContradictionStatus.CONSISTENT: UnifiedFindingStatus.AGREEMENT,
-            ContradictionStatus.INSUFFICIENT_INFORMATION: UnifiedFindingStatus.MISSING_INFORMATION,
-            ContradictionStatus.NEEDS_REVIEW: UnifiedFindingStatus.NEEDS_REVIEW,
-        }
+        now_iso = datetime.now(timezone.utc).isoformat()
 
         for comp in comparison_results:
-            u_status = status_map.get(comp.status, UnifiedFindingStatus.NEEDS_REVIEW)
+            if comp.status == ContradictionStatus.CONSISTENT:
+                u_status = UnifiedFindingStatus.AGREEMENT
+            elif comp.status == ContradictionStatus.CONTRADICTION:
+                u_status = UnifiedFindingStatus.CONTRADICTION
+            elif comp.status == ContradictionStatus.NEEDS_REVIEW:
+                u_status = UnifiedFindingStatus.NEEDS_REVIEW
+            elif comp.status == ContradictionStatus.INSUFFICIENT_INFORMATION:
+                # If one source stated a claim with evidence, it is a single-source STATED_CLAIM
+                if comp.ad_evidence or comp.chat_evidence:
+                    u_status = UnifiedFindingStatus.STATED_CLAIM
+                else:
+                    u_status = UnifiedFindingStatus.MISSING_INFORMATION
+            else:
+                u_status = UnifiedFindingStatus.NEEDS_REVIEW
+
             ev = comp.chat_evidence or comp.ad_evidence
             val = getattr(chat_claims, comp.field, None) or getattr(ad_claims, comp.field, None)
 
@@ -294,7 +333,7 @@ class PaymentRulesEngine:
                     observed_value=str(val) if val is not None else None,
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=ev,
-                    retrieval_date=ad_claims.price_evidence or "",  # will fallback to default timestamp in schema
+                    retrieval_date=now_iso,
                     verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
                     explanation=comp.explanation,
                     severity=comp.severity,

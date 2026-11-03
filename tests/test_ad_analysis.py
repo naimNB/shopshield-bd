@@ -50,7 +50,7 @@ def test_ad_analysis_endpoint_success():
         assert len(data["findings"]) > 0
         price_findings = [f for f in data["findings"] if f["claim_type"] == "price"]
         assert len(price_findings) == 1
-        assert price_findings[0]["status"] == UnifiedFindingStatus.AGREEMENT.value
+        assert price_findings[0]["status"] == UnifiedFindingStatus.STATED_CLAIM.value
 
         # Metadata
         assert data["metadata"]["ad_char_count"] == len(ad_text)
@@ -167,3 +167,48 @@ def test_ad_analysis_empty_claims_handles_gracefully():
     assert "cod" in missing_fields
     assert "return_policy" in missing_fields
     assert len(res.buyer_questions_bangla) > 0
+
+
+def test_unified_finding_rejects_evidence_quotes_as_timestamps():
+    """Verify UnifiedFinding rejects raw text or quotes passed as retrieval_date (Phase 1)."""
+    from backend.app.schemas.unified_evidence import UnifiedFinding
+    from pydantic import ValidationError
+
+    # Passing raw evidence quote must raise ValidationError
+    with pytest.raises(ValidationError):
+        UnifiedFinding(
+            claim_type="price",
+            field_label="Price",
+            status=UnifiedFindingStatus.STATED_CLAIM,
+            explanation="Testing",
+            limitations="Testing limitations",
+            retrieval_date="মূল্য মাত্র ১২০০ টাকা",  # Evidence quote, not timestamp!
+        )
+
+    # Valid UTC ISO-8601 timestamp must succeed
+    valid_finding = UnifiedFinding(
+        claim_type="price",
+        field_label="Price",
+        status=UnifiedFindingStatus.STATED_CLAIM,
+        explanation="Testing",
+        limitations="Testing limitations",
+        retrieval_date="2026-11-03T11:45:00.123456Z",
+    )
+    assert "2026-11-03" in valid_finding.retrieval_date
+
+
+def test_unspecified_advance_payment_purpose_reasoning():
+    """Verify an ad stating '150 taka advance' without purpose remains UNSPECIFIED (Phase 2)."""
+    ad_text = "জেন্টলমেন ওয়ালেট। মূল্য ৮৫০ টাকা। অর্ডার করতে ১৫০ টাকা অগ্রিম বিকাশ করতে হবে।"
+    analyzer = AdAnalyzer(extractor=DeterministicExtractor())
+    req = AdAnalysisRequest(advertisement_text=ad_text)
+    res = analyzer.analyze_ad(req)
+
+    # Must be classified as UNSPECIFIED, NOT delivery_charge from amount alone!
+    assert res.advertisement_claims.advance_payment_required is True
+    assert res.advertisement_claims.advance_payment_amount == 150.0
+    assert res.advertisement_claims.advance_payment_purpose == "UNSPECIFIED"
+
+    # Warning must be ADVANCE_UNSPECIFIED_PURPOSE
+    warning_types = [w.type for w in res.payment_considerations]
+    assert PaymentWarningType.ADVANCE_UNSPECIFIED_PURPOSE.value in warning_types

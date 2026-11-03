@@ -6,6 +6,7 @@ Never confuses missing information with contradiction, and never triggers CONTRA
 without verified supporting evidence from both sources.
 """
 
+import re
 from typing import List, Optional
 from backend.app.schemas.claims import ExtractedClaims
 from backend.app.schemas.comparison import ContradictionStatus, ComparisonItem
@@ -67,6 +68,47 @@ class ComparisonService:
                     severity="medium",
                 )
 
+            # Check contextual conditions before flat contradiction
+            ad_ev = (ad.price_evidence or "").lower()
+            chat_ev = (chat.price_evidence or "").lower()
+
+            # 1. Bundle vs Single Item Quantity Distinction
+            ad_bundle = bool(re.search(r"(?:combo|pack|কম্বো|প্যাক|package|[২-৫2-5]\s*(?:টি|টা|pcs|pieces|tar|ta))", ad_ev))
+            chat_single = bool(re.search(r"(?:১টি|১টা|1\s*(?:pc|piece)|single|প্রতি\s*পিস|per\s*piece)", chat_ev))
+            if ad_bundle and chat_single:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.price_evidence,
+                    chat_evidence=chat.price_evidence,
+                    explanation=(
+                        f"Unit quantity difference: Advertisement quoted a bundle/combo price (৳{ad.price:,.2f}), "
+                        f"whereas seller in chat quoted a single unit price (৳{chat.price:,.2f}). Confirm intended package quantity."
+                    ),
+                    severity="medium",
+                )
+
+            # 2. Expired promotional offer / conditional discount
+            chat_urg = (chat.urgency_evidence or "").lower()
+            chat_expired = bool(
+                re.search(r"(?:offer\s*(?:expired|shesh|bondho)|expired|অফার\s*শেষ|মেয়াদ\s*শেষ)", chat_ev)
+                or re.search(r"(?:offer\s*(?:expired|shesh|bondho)|expired|অফার\s*শেষ|মেয়াদ\s*শেষ)", chat_urg)
+            )
+            if chat_expired:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.price_evidence,
+                    chat_evidence=chat.price_evidence,
+                    explanation=(
+                        f"Conditional or expired promotional price: Seller in chat indicated promotional offer has expired. "
+                        f"Advertised ৳{ad.price:,.2f} vs current quote ৳{chat.price:,.2f}."
+                    ),
+                    severity="medium",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -116,6 +158,27 @@ class ComparisonService:
                     chat_evidence=chat.cod_evidence,
                     explanation="COD conflict indicated, but supporting evidence quotation is missing from one source. Requires review.",
                     severity="medium",
+                )
+
+            # Check location-conditional COD (inside Dhaka vs outside Dhaka)
+            ad_ev = (ad.cod_evidence or "").lower()
+            chat_ev = (chat.cod_evidence or "").lower()
+
+            ad_inside_only = bool(re.search(r"(?:ঢাকার\s*ভেতর|inside\s*dhaka|dhakar\s*bhitore|dhakar\s*vetore)", ad_ev)) and not bool(re.search(r"(?:সারা\s*বাংলাদেশ|all\s*over\s*bd|nationwide|সারাদেশে)", ad_ev))
+            chat_outside_denied = bool(re.search(r"(?:ঢাকার\s*বাইরে|outside\s*dhaka|dhakar\s*baire)", chat_ev))
+
+            if ad_inside_only and chat_outside_denied:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.cod_evidence,
+                    chat_evidence=chat.cod_evidence,
+                    explanation=(
+                        "Conditional regional COD policy: Advertisement restricted COD to inside Dhaka. "
+                        "Seller in chat stated COD is unavailable outside Dhaka. Confirm buyer delivery destination."
+                    ),
+                    severity="info",
                 )
 
             return ComparisonItem(
@@ -288,6 +351,28 @@ class ComparisonService:
                     severity="medium",
                 )
 
+            ad_ev = (ad.return_policy_evidence or "").lower()
+            chat_ev = (chat.return_policy_evidence or "").lower()
+
+            # Check replacement vs refund clarification
+            ad_replacement = bool(re.search(r"(?:replacement|exchange|রিপ্লেসমেন্ট|পরিবর্তন|এক্সচেঞ্জ)", ad_ev))
+            chat_no_cash_refund = bool(re.search(r"(?:no\s+refund|non-refundable|টাকা\s*ফেরত\s*হবে\s*না|রিফান্ড\s*নেই)", chat_ev))
+            chat_allows_exchange = bool(re.search(r"(?:replacement|exchange|রিপ্লেসমেন্ট|এক্সচেঞ্জ|পরিবর্তন\s*পাবেন)", chat_ev))
+
+            if ad_replacement and chat_no_cash_refund and chat_allows_exchange:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.CONSISTENT,
+                    ad_evidence=ad.return_policy_evidence,
+                    chat_evidence=chat.return_policy_evidence,
+                    explanation=(
+                        "Return policy terms are aligned: Both sources support replacement/exchange for defective items. "
+                        "Seller clarified that cash refunds are not offered."
+                    ),
+                    severity="info",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -369,6 +454,22 @@ class ComparisonService:
                     severity="medium",
                 )
 
+            # Check service warranty vs official/replacement warranty distinction
+            chat_ev_lower = (chat.warranty_evidence or "").lower()
+            if "service" in chat_ev_lower or "সার্ভিস" in chat_ev_lower:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.warranty_evidence,
+                    chat_evidence=chat.warranty_evidence,
+                    explanation=(
+                        "Warranty scope clarification needed: Advertisement advertised warranty coverage, "
+                        "while seller in chat stated only service warranty is provided (no parts/replacement warranty)."
+                    ),
+                    severity="low",
+                )
+
             return ComparisonItem(
                 field=field,
                 field_label=label,
@@ -416,11 +517,31 @@ class ComparisonService:
 
         ad_text = (ad.delivery_conditions or "").lower()
         chat_text = (chat.delivery_conditions or "").lower()
+        ad_ev = (ad.delivery_evidence or "").lower()
+        chat_ev = (chat.delivery_evidence or "").lower()
+
+        # Check conditional free delivery (thresholds, minimum orders, conditions)
+        threshold_pattern = r"(?:above|over|minimum|min|\+|বেশি|অর্ডার|শর্ত|condition|টাকার|যদি|[১-৯0-9]+\s*(?:পিস|টি|টা|হলে|টাকা))"
+        has_conditional_free = bool(re.search(threshold_pattern, ad_text) or re.search(threshold_pattern, ad_ev))
 
         # Free delivery contradiction
-        if ("free delivery" in ad_text or "delivery free" in ad_text or "ফ্রি ডেলিভারি" in ad_text) and (
-            "delivery charge" in chat_text or "ডেলিভারি চার্জ" in chat_text or "charge" in chat_text
+        if ("free delivery" in ad_text or "delivery free" in ad_text or "ফ্রি ডেলিভারি" in ad_text or "ফ্রি" in ad_ev) and (
+            "delivery charge" in chat_text or "ডেলিভারি চার্জ" in chat_text or "charge" in chat_text or "চার্জ" in chat_ev
         ):
+            if has_conditional_free:
+                return ComparisonItem(
+                    field=field,
+                    field_label=label,
+                    status=ContradictionStatus.NEEDS_REVIEW,
+                    ad_evidence=ad.delivery_evidence,
+                    chat_evidence=chat.delivery_evidence,
+                    explanation=(
+                        "Conditional free delivery detected in advertisement (e.g. minimum purchase amount, quantity threshold, or regional limit). "
+                        "Seller in chat quoted a delivery fee; verify whether the order meets all required conditions."
+                    ),
+                    severity="low",
+                )
+
             if not ad.delivery_evidence or not chat.delivery_evidence:
                 return ComparisonItem(
                     field=field,
