@@ -9,7 +9,19 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Google GenAI](https://img.shields.io/badge/Google_GenAI-SDK_2.0+-4285F4.svg?logo=google&logoColor=white)](https://github.com/googleapis/python-genai)
+[![Vercel Deployment](https://img.shields.io/badge/Vercel-Deployed-000000.svg?logo=vercel&logoColor=white)](https://shopshield-bd.vercel.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+## 🌐 Live Production Deployments
+
+| Component | URL | Description | Status |
+|---|---|---|---|
+| **Frontend Web App** | [https://shopshield-bd.vercel.app](https://shopshield-bd.vercel.app) | Production React 19 + Vite + Tailwind interface | 🟢 Operational |
+| **Backend API** | [https://shopshield-bd-api.vercel.app](https://shopshield-bd-api.vercel.app) | Production FastAPI serverless backend | 🟢 Operational |
+| **Interactive API Docs** | [https://shopshield-bd-api.vercel.app/docs](https://shopshield-bd-api.vercel.app/docs) | Interactive OpenAPI Swagger UI | 🟢 Available |
+| **Health Check Probe** | [https://shopshield-bd-api.vercel.app/health](https://shopshield-bd-api.vercel.app/health) | Live JSON system health monitor | 🟢 Healthy |
 
 ---
 
