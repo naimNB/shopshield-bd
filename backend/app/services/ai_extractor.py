@@ -285,25 +285,19 @@ class AIExtractorService:
                     if code == 429:
                         last_error = e
                         if attempt == 0:
-                            time.sleep(2.0)
+                            time.sleep(1.0)
                             continue
-                        # If rate limit hit on this model, break to attempt fallback model
                         break
-                    elif code in (408, 504):
-                        raise AITimeoutError("Gemini API request timed out. Please try again.") from e
+                    elif code in (408, 500, 502, 503, 504):
+                        last_error = e
+                        break
                     elif code in (401, 403):
                         raise ConfigurationError("Gemini API authentication failed. Please check your GEMINI_API_KEY.") from e
-                    elif code == 503:
-                        last_error = e
-                        if attempt == 0:
-                            time.sleep(1.5)
-                            continue
-                        # If second attempt on this model failed, break to try fallback model
-                        break
                     raise AIProviderError("AI service provider returned an error.") from e
-                except httpx.TimeoutException as e:
+                except (httpx.TimeoutException, TimeoutError) as e:
                     logger.error("AI provider HTTP client timeout: %s", str(e))
-                    raise AITimeoutError("AI extraction request timed out.") from e
+                    last_error = e
+                    break
                 except Exception as e:
                     logger.error("Unexpected error during AI call: %s", type(e).__name__)
                     raise AIProviderError("AI service provider is currently unavailable. Please try again later.") from e
@@ -315,6 +309,8 @@ class AIExtractorService:
                 code = getattr(last_error, "code", None)
                 if code == 429:
                     raise AIQuotaExhaustedError("Gemini API quota or rate limit exceeded. Please try again later.") from last_error
+                if code in (408, 504) or isinstance(last_error, (httpx.TimeoutException, TimeoutError)):
+                    raise AITimeoutError("Gemini API request timed out across models. Please try again with shorter text.") from last_error
                 raise AIProviderError("AI service provider returned an error.") from last_error
             raise AIResponseValidationError("AI provider returned an empty response.")
 
