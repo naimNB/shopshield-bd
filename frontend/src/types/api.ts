@@ -138,6 +138,34 @@ export interface AnalysisMetadata {
   [key: string]: unknown;
 }
 
+export type AssessmentState =
+  | 'WARNING_SIGNS_FOUND'
+  | 'NO_SPECIFIC_WARNING_SIGNS_FOUND'
+  | 'INSUFFICIENT_EVIDENCE';
+
+export interface AssessmentSummary {
+  headline_bn: string;
+  headline_en: string;
+  explanation_bn: string;
+  explanation_en: string;
+  primary_action_bn: string;
+  primary_action_en: string;
+}
+
+export interface ProductAuthenticityAssessment {
+  status: 'CLAIMED_ORIGINAL' | 'NOT_INDEPENDENTLY_VERIFIED' | 'INSUFFICIENT_EVIDENCE';
+  status_label_bn: string;
+  status_label_en: string;
+  claim_detected: boolean;
+  claim_evidence?: string | null;
+  explanation_bn: string;
+  explanation_en: string;
+  verification_steps_bn: string[];
+  verification_steps_en: string[];
+  disclaimer_bn: string;
+  disclaimer_en: string;
+}
+
 // 1. Advertisement Quick Check
 export interface AdAnalysisRequest {
   advertisement_text: string;
@@ -147,6 +175,9 @@ export interface AdAnalysisRequest {
 
 export interface AdAnalysisResponse {
   status: string;
+  overall_assessment?: AssessmentState;
+  assessment_summary?: AssessmentSummary | null;
+  product_authenticity?: ProductAuthenticityAssessment | null;
   advertisement_claims: ExtractedClaims;
   findings: UnifiedFinding[];
   explicit_terms: string[];
@@ -154,6 +185,7 @@ export interface AdAnalysisResponse {
   ambiguous_statements: string[];
   payment_considerations: PaymentWarning[];
   buyer_questions_bangla: string[];
+  buyer_questions_en?: string[];
   source_coverage: string;
   limitations: string;
   metadata: AnalysisMetadata;
@@ -168,6 +200,9 @@ export interface AnalyzeRequest {
 
 export interface AnalyzeResponse {
   status: string;
+  overall_assessment?: AssessmentState;
+  assessment_summary?: AssessmentSummary | null;
+  product_authenticity?: ProductAuthenticityAssessment | null;
   has_contradictions: boolean;
   contradiction_count: number;
   needs_review_count: number;
@@ -177,6 +212,8 @@ export interface AnalyzeResponse {
   payment_warnings: PaymentWarning[];
   missing_information: MissingInfoItem[];
   buyer_questions_bangla: string[];
+  buyer_questions_en?: string[];
+  unified_findings?: UnifiedFinding[];
   metadata: AnalysisMetadata;
 }
 

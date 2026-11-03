@@ -1,21 +1,24 @@
 import React from 'react';
 import { ShieldCheck, Lock, Scale } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export const AboutSection: React.FC = () => {
+  const { t } = useLanguage();
+
   const principles = [
     {
-      title: 'প্রমাণভিত্তিক নীতি',
-      desc: 'আমরা কোনো মনগড়া ট্রাস্ট স্কোর বা মিথ্যা গ্যারান্টি দিই না। শুধুমাত্র যাচাইযোগ্য বাস্তব তথ্যের ভিত্তিতে বিশ্লেষণ তুলে ধরি।',
+      title: t('aboutPill2'),
+      desc: t('aboutParagraph2'),
       icon: ShieldCheck,
     },
     {
-      title: 'সম্পূর্ণ গোপনীয়তা',
+      title: t('aboutPill3'),
       desc: 'আপনার আপলোড করা স্ক্রিনশট বা চ্যাট সার্ভারে স্থায়ীভাবে জমা রাখা হয় না। মেমোরিতে প্রসেসিং শেষ হওয়ার সাথে সাথে মুছে ফেলা হয়।',
       icon: Lock,
     },
     {
-      title: 'ভোক্তা অধিকার সচেতনতা',
-      desc: 'প্রতিটি বিশ্লেষণের পর ক্রেতাকে ইনবক্সে পাঠানোর জন্য প্রস্তুত প্রশ্ন দেওয়া হয়, যাতে প্রতারিত হলে আইনি প্রমাণ উপস্থাপন করা যায়।',
+      title: t('aboutPill1'),
+      desc: 'অনলাইন ও সোশ্যাল কমার্সে সাধারণ ক্রেতাদের আর্থিক নিরাপত্তা ও অধিকার রক্ষার একটি উন্মুক্ত প্রযুক্তি উদ্যোগ।',
       icon: Scale,
     },
   ];
@@ -25,10 +28,10 @@ export const AboutSection: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-sans tracking-tight">
-            শপশিল্ড বিডি সম্পর্কে
+            {t('aboutHeading')}
           </h2>
           <p className="mt-3 text-sm sm:text-base text-slate-300 leading-relaxed font-sans">
-            অনলাইন ও সোশ্যাল কমার্সে সাধারণ ক্রেতাদের আর্থিক নিরাপত্তা ও অধিকার রক্ষার একটি উন্মুক্ত প্রযুক্তি উদ্যোগ।
+            {t('aboutSubheading')}
           </p>
         </div>
 

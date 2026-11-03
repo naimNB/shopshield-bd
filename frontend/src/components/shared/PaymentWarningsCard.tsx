@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldAlert, AlertTriangle, Info, ArrowRight, Quote } from 'lucide-react';
 import type { PaymentWarning } from '../../types/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface PaymentWarningsCardProps {
   warnings: PaymentWarning[];
@@ -9,9 +10,13 @@ interface PaymentWarningsCardProps {
 
 export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
   warnings,
-  title = 'পেমেন্ট ও অগ্রিম পরিশোধ সংক্রান্ত সতর্কতা',
+  title,
 }) => {
+  const { language, t } = useLanguage();
+
   if (!warnings || warnings.length === 0) return null;
+
+  const cardTitle = title || t('warningsCardTitle');
 
   const getSeverityStyle = (severity: string) => {
     const sev = severity.toLowerCase();
@@ -19,16 +24,16 @@ export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
       return {
         cardBg: 'bg-rose-950/20 border-rose-500/40',
         badgeBg: 'bg-rose-500/20 text-rose-300 border-rose-500/50',
-        badgeText: 'উচ্চ ঝুঁকি (High Risk)',
+        badgeText: language === 'bn' ? 'উচ্চ ঝুঁকি (High Risk)' : 'High Risk',
         icon: ShieldAlert,
         iconColor: 'text-rose-400',
       };
     }
-    if (sev === 'medium' || sev === 'warning') {
+    if (sev === 'medium' || sev === 'warning' || sev === 'caution') {
       return {
         cardBg: 'bg-amber-950/20 border-amber-500/40',
         badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/50',
-        badgeText: 'সতর্কতা (Caution)',
+        badgeText: language === 'bn' ? 'সতর্কতা (Caution)' : 'Caution',
         icon: AlertTriangle,
         iconColor: 'text-amber-400',
       };
@@ -36,7 +41,7 @@ export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
     return {
       cardBg: 'bg-slate-900 border-slate-800',
       badgeBg: 'bg-slate-800 text-slate-300 border-slate-700',
-      badgeText: 'পরামর্শ (Advisory)',
+      badgeText: language === 'bn' ? 'তথ্যমূলক (Advisory)' : 'Informational',
       icon: Info,
       iconColor: 'text-slate-400',
     };
@@ -46,7 +51,7 @@ export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
     <div className="space-y-3.5">
       <div className="flex items-center gap-2">
         <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" aria-hidden="true" />
-        <h3 className="text-base sm:text-lg font-bold text-slate-100 font-sans">{title}</h3>
+        <h3 className="text-base sm:text-lg font-bold text-slate-100 font-sans">{cardTitle}</h3>
       </div>
 
       <div className="space-y-3">
@@ -83,7 +88,7 @@ export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
                 <div className="bg-slate-950/70 border-l-3 border-amber-500/70 rounded-r-lg p-3 text-xs sm:text-sm text-slate-200">
                   <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono mb-1">
                     <Quote className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
-                    <span>উদ্ধৃতি প্রমাণ (Supporting Evidence):</span>
+                    <span>{t('evidenceQuoteLabel')}</span>
                   </div>
                   <p className="italic font-serif break-words">&ldquo;{warning.supporting_evidence}&rdquo;</p>
                 </div>
@@ -94,7 +99,7 @@ export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
                 <div className="flex items-start gap-2.5 bg-slate-950/80 rounded-xl p-3 text-xs sm:text-sm border border-slate-800">
                   <ArrowRight className="w-4 h-4 text-teal-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
                   <p className="text-slate-200 font-sans leading-relaxed">
-                    <strong className="text-teal-300 font-bold">ক্রেতার করণীয়: </strong>
+                    <strong className="text-teal-300 font-bold">{t('buyerActionLabel')} </strong>
                     {warning.suggested_buyer_action}
                   </p>
                 </div>

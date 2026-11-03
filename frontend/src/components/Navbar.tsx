@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, Menu, X } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useLanguage } from '../context/LanguageContext';
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -9,6 +10,7 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' })
 );
 
 export const Navbar: React.FC = () => {
+  const { language, setLanguage, t } = useLanguage();
   const [backendStatus, setBackendStatus] = useState<'checking' | 'healthy' | 'offline'>('checking');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -51,7 +53,7 @@ export const Navbar: React.FC = () => {
         href="#analyzer"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-teal-600 focus:text-white focus:rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-400"
       >
-        মূল যাচাইকরণে যান
+        {t('skipToMain')}
       </a>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
@@ -59,7 +61,7 @@ export const Navbar: React.FC = () => {
           <a
             href="#"
             className="flex items-center space-x-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 rounded-lg p-1"
-            aria-label="ShopShield BD হোমপেজ"
+            aria-label={`${t('appTitle')} Home`}
           >
             <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 group-hover:bg-teal-500/20 transition-all shadow-sm">
               <ShieldCheck className="w-5 h-5 text-teal-400" />
@@ -73,42 +75,78 @@ export const Navbar: React.FC = () => {
                   BD
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-sans -mt-0.5">ভোক্তা সুরক্ষা সহকারী</p>
+              <p className="text-[11px] text-slate-400 font-sans -mt-0.5">{t('appSubtitle')}</p>
             </div>
           </a>
 
           {/* Desktop Nav Links */}
           <nav
-            aria-label="প্রধান মেনু"
+            aria-label="Navigation Menu"
             className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300"
           >
             <a
               href="#analyzer"
               className="hover:text-teal-400 transition-colors py-1 focus-visible:ring-2 focus-visible:ring-teal-400 rounded px-1"
             >
-              যাচাই
+              {t('navVerify')}
             </a>
             <a
               href="#how-it-works"
               className="hover:text-teal-400 transition-colors py-1 focus-visible:ring-2 focus-visible:ring-teal-400 rounded px-1"
             >
-              কীভাবে কাজ করে
+              {t('navHowItWorks')}
             </a>
             <a
               href="#about"
               className="hover:text-teal-400 transition-colors py-1 focus-visible:ring-2 focus-visible:ring-teal-400 rounded px-1"
             >
-              পরিচিতি
+              {t('navAbout')}
             </a>
           </nav>
 
-          {/* Action & Status */}
-          <div className="hidden sm:flex items-center space-x-4">
+          {/* Action & Status & Language Switch */}
+          <div className="hidden sm:flex items-center space-x-3">
+            {/* Language Switcher Segment Toggle */}
+            <div
+              className="flex items-center bg-slate-900/90 border border-slate-700/80 rounded-xl p-0.5 text-xs font-medium shadow-inner"
+              role="group"
+              aria-label="Language Switcher"
+            >
+              <button
+                type="button"
+                onClick={() => setLanguage('bn')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  language === 'bn'
+                    ? 'bg-teal-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                aria-pressed={language === 'bn'}
+              >
+                বাংলা
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  language === 'en'
+                    ? 'bg-teal-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                aria-pressed={language === 'en'}
+              >
+                English
+              </button>
+            </div>
+
             {/* Backend Health Badge */}
             <div
               role="status"
-              aria-label={`সার্ভার অবস্থা: ${
-                backendStatus === 'healthy' ? 'অনলাইন' : backendStatus === 'checking' ? 'সংযোগ হচ্ছে' : 'অফলাইন'
+              aria-label={`Server: ${
+                backendStatus === 'healthy'
+                  ? t('serverOnline')
+                  : backendStatus === 'checking'
+                  ? t('serverConnecting')
+                  : t('serverOffline')
               }`}
               className="flex items-center space-x-1.5 text-xs text-slate-400"
             >
@@ -123,7 +161,11 @@ export const Navbar: React.FC = () => {
                 aria-hidden="true"
               />
               <span className="text-[11px] font-sans">
-                {backendStatus === 'healthy' ? 'অনলাইন' : backendStatus === 'checking' ? 'সংযোগ...' : 'অফলাইন'}
+                {backendStatus === 'healthy'
+                  ? t('serverOnline')
+                  : backendStatus === 'checking'
+                  ? t('serverConnecting')
+                  : t('serverOffline')}
               </span>
             </div>
 
@@ -133,8 +175,8 @@ export const Navbar: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               className="p-1.5 text-slate-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 rounded-lg"
-              title="GitHub রিপোজিটরি"
-              aria-label="GitHub রিপোজিটরি দেখুন"
+              title={t('githubRepo')}
+              aria-label={t('githubRepo')}
             >
               <GithubIcon className="w-4 h-4" />
             </a>
@@ -144,19 +186,44 @@ export const Navbar: React.FC = () => {
               href="#analyzer"
               className="inline-flex items-center space-x-1 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-teal-400"
             >
-              <span>যাচাই শুরু করুন</span>
+              <span>{t('heroCtaVerify')}</span>
             </a>
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile menu button and language switch */}
           <div className="md:hidden flex items-center space-x-2">
+            <div
+              className="flex items-center bg-slate-900 border border-slate-700/80 rounded-lg p-0.5 text-xs font-medium"
+              role="group"
+              aria-label="Language Switcher"
+            >
+              <button
+                type="button"
+                onClick={() => setLanguage('bn')}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                  language === 'bn' ? 'bg-teal-500 text-white' : 'text-slate-400'
+                }`}
+              >
+                বাং
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                  language === 'en' ? 'bg-teal-500 text-white' : 'text-slate-400'
+                }`}
+              >
+                EN
+              </button>
+            </div>
+
             <button
               ref={menuButtonRef}
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-expanded={isMenuOpen}
               aria-controls="mobile-nav"
-              aria-label={isMenuOpen ? 'মেনু বন্ধ করুন' : 'প্রধান মেনু খুলুন'}
+              aria-label={isMenuOpen ? 'Close Menu' : 'Open Menu'}
             >
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -175,21 +242,21 @@ export const Navbar: React.FC = () => {
             onClick={() => setIsMenuOpen(false)}
             className="block px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800/80 hover:text-teal-400 text-sm font-medium transition-colors"
           >
-            যাচাই
+            {t('navVerify')}
           </a>
           <a
             href="#how-it-works"
             onClick={() => setIsMenuOpen(false)}
             className="block px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800/80 hover:text-teal-400 text-sm font-medium transition-colors"
           >
-            কীভাবে কাজ করে
+            {t('navHowItWorks')}
           </a>
           <a
             href="#about"
             onClick={() => setIsMenuOpen(false)}
             className="block px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800/80 hover:text-teal-400 text-sm font-medium transition-colors"
           >
-            পরিচিতি
+            {t('navAbout')}
           </a>
 
           <div className="pt-2 border-t border-slate-800 flex items-center justify-between px-3 text-xs text-slate-400">
@@ -200,7 +267,7 @@ export const Navbar: React.FC = () => {
                 }`}
                 aria-hidden="true"
               />
-              <span>সার্ভার: {backendStatus === 'healthy' ? 'অনলাইন' : 'অফলাইন'}</span>
+              <span>Server: {backendStatus === 'healthy' ? t('serverOnline') : t('serverOffline')}</span>
             </div>
             <a
               href="https://github.com/naimNB/shopshield-bd"

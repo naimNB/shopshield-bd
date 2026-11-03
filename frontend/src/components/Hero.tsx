@@ -1,26 +1,40 @@
 import React from 'react';
 import { ArrowDown } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export const Hero: React.FC = () => {
+  const { t } = useLanguage();
+
   return (
-    <section className="py-14 sm:py-20 text-center max-w-4xl mx-auto px-4 sm:px-6">
+    <section className="py-12 sm:py-16 text-center max-w-4xl mx-auto px-4 sm:px-6">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-semibold mb-4">
+        {t('heroBadge')}
+      </div>
+
       <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white font-sans leading-tight">
-        কেনার আগে যাচাই করুন
+        {t('heroTitle1')}{' '}
+        <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-emerald-400">
+          {t('heroTitleHighlight')}
+        </span>
       </h1>
 
       <p className="mt-4 sm:mt-5 text-base sm:text-lg text-slate-300 leading-relaxed font-sans max-w-2xl mx-auto">
-        অনলাইন বিজ্ঞাপন, বিক্রেতার কথাবার্তা এবং উপলব্ধ ঐতিহাসিক তথ্য মিলিয়ে কেনাকাটার সিদ্ধান্ত নিন।
+        {t('heroSubtitle')}
       </p>
 
-      <div className="mt-8 flex justify-center">
+      <div className="mt-7 flex justify-center">
         <a
           href="#analyzer"
           className="inline-flex items-center gap-2 px-7 py-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold text-sm sm:text-base shadow-lg shadow-teal-900/30 transition-all focus-visible:ring-2 focus-visible:ring-teal-400 min-h-[48px]"
         >
-          <span>যাচাই শুরু করুন</span>
+          <span>{t('heroCtaVerify')}</span>
           <ArrowDown className="w-4 h-4" aria-hidden="true" />
         </a>
       </div>
+
+      <p className="mt-3 text-xs text-slate-400 max-w-xl mx-auto">
+        {t('heroDisclaimer')}
+      </p>
     </section>
   );
 };

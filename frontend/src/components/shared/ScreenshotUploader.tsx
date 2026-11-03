@@ -11,6 +11,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export interface ScreenshotUploaderProps {
   label: string;
@@ -31,6 +32,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
   onExtractedText,
   className = '',
 }) => {
+  const { language } = useLanguage();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -207,7 +209,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
             <Upload className="w-5 h-5" aria-hidden="true" />
           </div>
           <p className="text-xs sm:text-sm font-semibold text-slate-200 group-hover:text-white font-sans">
-            স্ক্রিনশট নির্বাচন করতে ক্লিক করুন বা টেনে আনুন
+            {language === 'bn' ? 'স্ক্রিনশট নির্বাচন করতে ক্লিক করুন বা টেনে আনুন' : 'Click or drag & drop to choose screenshot'}
           </p>
           <p className="text-xs text-slate-400 mt-1 font-sans">{helperText}</p>
         </div>
@@ -230,14 +232,16 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
               {loading && (
                 <div role="status" aria-live="polite" className="flex items-center gap-1.5 text-xs text-teal-400 mt-1">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-                  <span>AI OCR দিয়ে টেক্সট পড়া হচ্ছে...</span>
+                  <span>{language === 'bn' ? 'AI OCR দিয়ে টেক্সট পড়া হচ্ছে...' : 'Extracting text with Google Gemini OCR...'}</span>
                 </div>
               )}
               {isApplied && !loading && (
                 <div className="flex items-center gap-1 text-xs text-teal-300 mt-1 font-sans">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                   <span>
-                    টেক্সট সফলভাবে ইনপুটে {appliedMode === 'append' ? 'শেষে যুক্ত' : 'প্রতিস্থাপন'} করা হয়েছে
+                    {language === 'bn'
+                      ? `টেক্সট সফলভাবে ইনপুটে ${appliedMode === 'append' ? 'শেষে যুক্ত' : 'প্রতিস্থাপন'} করা হয়েছে`
+                      : `Text successfully ${appliedMode === 'append' ? 'appended to' : 'replaced in'} input`}
                   </span>
                 </div>
               )}
@@ -250,15 +254,15 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                 disabled={loading}
                 className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50 min-h-[36px]"
               >
-                ছবি পরিবর্তন
+                {language === 'bn' ? 'ছবি পরিবর্তন' : 'Change'}
               </button>
               <button
                 type="button"
                 onClick={() => performOcr(file)}
                 disabled={loading}
                 className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs transition-colors border border-slate-700 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50 min-h-[36px] min-w-[36px] flex items-center justify-center"
-                title="পুনরায় OCR করুন"
-                aria-label="পুনরায় OCR টেক্সট রিড করুন"
+                title={language === 'bn' ? 'পুনরায় OCR করুন' : 'Retry OCR'}
+                aria-label={language === 'bn' ? 'পুনরায় OCR টেক্সট রিড করুন' : 'Retry OCR extraction'}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
               </button>
@@ -319,7 +323,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                       className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-teal-200 border border-slate-700 text-xs font-semibold transition-colors flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40 min-h-[36px]"
                     >
                       <PlusCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>শেষে যুক্ত করুন (Append)</span>
+                      <span>{language === 'bn' ? 'শেষে যুক্ত করুন (Append)' : 'Append'}</span>
                     </button>
                     <button
                       type="button"
@@ -328,7 +332,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                       className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40 min-h-[36px]"
                     >
                       <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>প্রতিস্থাপন করুন (Replace)</span>
+                      <span>{language === 'bn' ? 'প্রতিস্থাপন করুন (Replace)' : 'Replace'}</span>
                     </button>
                   </>
                 ) : (
@@ -339,7 +343,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                     className="px-4 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40 min-h-[36px]"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>কনফার্ম ও ইনপুটে যোগ করুন</span>
+                    <span>{language === 'bn' ? 'কনফার্ম ও ইনপুটে যোগ করুন' : 'Confirm & Apply'}</span>
                   </button>
                 )}
               </div>

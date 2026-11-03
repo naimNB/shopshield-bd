@@ -6,7 +6,12 @@ from backend.app.schemas.analysis import AnalyzeRequest, AnalyzeResponse, Analys
 from backend.app.schemas.comparison import ContradictionStatus
 from backend.app.services.ai_extractor import AIExtractorService
 from backend.app.services.comparison_service import ComparisonService
-from backend.app.services.rules_engine import PaymentRulesEngine
+from backend.app.services.rules_engine import (
+    PaymentRulesEngine,
+    evaluate_product_authenticity,
+    determine_overall_assessment_comparison,
+    map_bangla_questions_to_english,
+)
 
 
 class PurchasePromiseAnalyzer:
@@ -63,6 +68,25 @@ class PurchasePromiseAnalyzer:
             missing_info=missing_info,
         )
 
+        # Determine overall assessment and summary
+        overall_assessment, assessment_summary = determine_overall_assessment_comparison(
+            ad_text=request.advertisement_text,
+            chat_text=request.seller_chat_text,
+            comparison_results=comparison_results,
+            warnings=warnings,
+            missing_info=missing_info,
+        )
+
+        # Evaluate product authenticity across ad and chat context
+        combined_text = f"{request.advertisement_text}\n{request.seller_chat_text}"
+        product_authenticity = evaluate_product_authenticity(
+            text=combined_text,
+            product_name=ad_claims.product_name or chat_claims.product_name,
+        )
+
+        # Generate English buyer questions
+        questions_en = map_bangla_questions_to_english(buyer_questions)
+
         elapsed_ms = (time.time() - start_time) * 1000.0
 
         model_str = getattr(self.extractor, "model_name", None)
@@ -78,6 +102,9 @@ class PurchasePromiseAnalyzer:
 
         return AnalyzeResponse(
             status="success",
+            overall_assessment=overall_assessment,
+            assessment_summary=assessment_summary,
+            product_authenticity=product_authenticity,
             advertisement_claims=ad_claims,
             seller_chat_claims=chat_claims,
             comparison_results=comparison_results,
@@ -87,6 +114,7 @@ class PurchasePromiseAnalyzer:
             payment_warnings=warnings,
             missing_information=missing_info,
             buyer_questions_bangla=buyer_questions,
+            buyer_questions_en=questions_en,
             unified_findings=unified_findings,
             metadata=metadata,
         )

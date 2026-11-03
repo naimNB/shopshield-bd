@@ -274,6 +274,7 @@ class AIExtractorService:
                             response_mime_type="application/json",
                             response_schema=ExtractedClaims,
                             temperature=0.0,
+                            thinking_config=types.ThinkingConfig(thinking_budget=0),
                         ),
                     )
                     if response and response.text:

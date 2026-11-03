@@ -4,6 +4,11 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from backend.app.schemas.analysis import AnalysisMetadata
+from backend.app.schemas.assessment import (
+    AssessmentState,
+    AssessmentSummary,
+    ProductAuthenticityAssessment,
+)
 from backend.app.schemas.claims import ExtractedClaims
 from backend.app.schemas.rules import MissingInfoItem, PaymentWarning
 from backend.app.schemas.unified_evidence import UnifiedFinding
@@ -35,6 +40,18 @@ class AdAnalysisResponse(BaseModel):
     """Complete structured output for Ad-only Quick Check."""
 
     status: str = Field("success", description="Status of the analysis")
+    overall_assessment: AssessmentState = Field(
+        "NO_SPECIFIC_WARNING_SIGNS_FOUND",
+        description="High-level assessment state: WARNING_SIGNS_FOUND | NO_SPECIFIC_WARNING_SIGNS_FOUND | INSUFFICIENT_EVIDENCE",
+    )
+    assessment_summary: Optional[AssessmentSummary] = Field(
+        None,
+        description="Bilingual summary headline, explanation, and primary recommended buyer action",
+    )
+    product_authenticity: Optional[ProductAuthenticityAssessment] = Field(
+        None,
+        description="Responsible authenticity assessment separating claims from proof",
+    )
     advertisement_claims: ExtractedClaims = Field(
         ...,
         description="Structured claims extracted from the advertisement",
@@ -62,6 +79,10 @@ class AdAnalysisResponse(BaseModel):
     buyer_questions_bangla: List[str] = Field(
         default_factory=list,
         description="Targeted verification questions in Bangla for the buyer to ask the seller",
+    )
+    buyer_questions_en: List[str] = Field(
+        default_factory=list,
+        description="Targeted verification questions in English for the buyer to ask the seller",
     )
     source_coverage: str = Field(
         "ADVERTISEMENT_ONLY",

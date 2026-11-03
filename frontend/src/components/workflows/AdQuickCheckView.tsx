@@ -10,30 +10,16 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import type { AdAnalysisResponse } from '../../types/api';
+import { useLanguage } from '../../context/LanguageContext';
 import { ScreenshotUploader } from '../shared/ScreenshotUploader';
 import { BuyerQuestionsCard } from '../shared/BuyerQuestionsCard';
 import { PaymentWarningsCard } from '../shared/PaymentWarningsCard';
+import { ProductAuthenticityCard } from '../shared/ProductAuthenticityCard';
+import { AssessmentSummaryBanner } from '../shared/AssessmentSummaryBanner';
 import { LoadingState, ErrorState, EmptyState } from '../shared/StatusState';
 
-const SAMPLE_ADS = [
-  {
-    title: 'উদাহরণ ১: হুডি',
-    text: `শীতের ধামাকা অফার! প্রিমিয়াম এক্সপোর্ট কোয়ালিটি ফ্লিস হুডি মাত্র ৭৫০ টাকা! সারাদেশে হোম ডেলিভারি ফ্রি। অর্ডার কনফার্ম করতে ডেলিভারি চার্জ ২০০ টাকা অগ্রিম বিকাশ করতে হবে। পণ্য দেখে মূল্য পরিশোধ করুন। স্টক সীমিত!`,
-    product: 'প্রিমিয়াম ফ্লিস হুডি',
-  },
-  {
-    title: 'উদাহরণ ২: স্মার্টওয়াচ',
-    text: `আল্ট্রা স্মার্টওয়াচ সিরিজ ৯! অরিজিনাল ডিসপ্লে, ব্লুটুথ কলিং, ওয়াটারপ্রুফ। অফার প্রাইস মাত্র ১২০০ টাকা (মার্কেট প্রাইজ ৩৫০০ টাকা)। অগ্রিম পুরো ১২০০ টাকা আমাদের পার্সোনাল বিকাশ/নগদে পাঠালে সাথে সাথে কুরিয়ার করা হবে। কোনো ক্যাশ অন ডেলিভারি নেই।`,
-    product: 'আল্ট্রা স্মার্টওয়াচ সিরিজ ৯',
-  },
-  {
-    title: 'উদাহরণ ৩: লোফার সু',
-    text: `১০০% অরিজিনাল লেদার ফরমাল লোফার সু। সাইজ ৩৯-৪৪। মূল্য ২১৫০ টাকা। সারা বাংলাদেশে ফুল ক্যাশ অন ডেলিভারি—কোনো অগ্রিম টাকা দিতে হবে না! ডেলিভারি ম্যানের সামনে চেক করে সাইজ না মিললে সাথে সাথে পরিবর্তন বা ফেরতযোগ্য।`,
-    product: 'অরিজিনাল লেদার লোফার সু',
-  },
-];
-
 export const AdQuickCheckView: React.FC = () => {
+  const { language, t } = useLanguage();
   const [adText, setAdText] = useState('');
   const [productContext, setProductContext] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,6 +28,27 @@ export const AdQuickCheckView: React.FC = () => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+
+  const sampleScenarios = [
+    {
+      titleBn: 'দৃশ্যপট ১: বিজ্ঞাপনে COD',
+      titleEn: 'Scenario 1: Ad COD',
+      text: 'শীতের প্রিমিয়াম উইন্টার জ্যাকেট মাত্র ১,৮৫০ টাকা! সারা দেশে ক্যাশ অন ডেলিভারি (COD) সুবিধা। পণ্য দেখে মূল্য পরিশোধ করুন। স্টক সীমিত, অর্ডার করতে এখনই ইনবক্স করুন!',
+      product: 'উইন্টার জ্যাকেট',
+    },
+    {
+      titleBn: "দৃশ্যপট ২: যাচাইহীন '১০০% আসল' ঘড়ি দাবি",
+      titleEn: "Scenario 2: Unverified 'Original' Watch Claim",
+      text: '100% Original Casio Edifice Chronograph Watch only 2,200 Tk! Authentic imported piece with original box and tags. Hurry, limited quantity available! Inbox to order.',
+      product: 'Casio Edifice Watch',
+    },
+    {
+      titleBn: 'দৃশ্যপট ৩: স্পষ্ট শর্তযুক্ত বিজ্ঞাপন',
+      titleEn: 'Scenario 3: Verified Clear Terms',
+      text: 'Winter Fleece Hoodie price 1,200 Tk. Cash on Delivery available across Bangladesh. Delivery charge 100 Tk. 7 days exchange policy. 6 months warranty.',
+      product: 'Fleece Hoodie',
+    },
+  ];
 
   useEffect(() => {
     return () => {
@@ -54,7 +61,11 @@ export const AdQuickCheckView: React.FC = () => {
   const handleAnalyze = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!adText.trim() || adText.trim().length < 5) {
-      setError('অনুগ্রহ করে বিজ্ঞাপনের টেক্সট লিখুন অথবা স্ক্রিনশট আপলোড করুন (কমপক্ষে ৫ অক্ষর)।');
+      setError(
+        language === 'bn'
+          ? 'অনুগ্রহ করে বিজ্ঞাপনের টেক্সট লিখুন অথবা স্ক্রিনশট আপলোড করুন (কমপক্ষে ৫ অক্ষর)।'
+          : 'Please enter advertisement text or upload a screenshot (at least 5 characters).'
+      );
       return;
     }
 
@@ -84,7 +95,12 @@ export const AdQuickCheckView: React.FC = () => {
         if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
           return;
         }
-        const msg = err instanceof Error ? err.message : 'বিজ্ঞাপন বিশ্লেষণ সম্পন্ন করা যায়নি।';
+        const msg =
+          err instanceof Error
+            ? err.message
+            : language === 'bn'
+            ? 'বিজ্ঞাপন বিশ্লেষণ সম্পন্ন করা যায়নি।'
+            : 'Advertisement verification could not be completed.';
         setError(msg);
       }
     } finally {
@@ -104,7 +120,7 @@ export const AdQuickCheckView: React.FC = () => {
     setError(null);
   };
 
-  const loadSample = (sample: typeof SAMPLE_ADS[0]) => {
+  const loadSample = (sample: (typeof sampleScenarios)[0]) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -115,29 +131,33 @@ export const AdQuickCheckView: React.FC = () => {
   };
 
   const claims = result?.advertisement_claims;
+  const activeQuestions =
+    language === 'en' && result?.buyer_questions_en && result.buyer_questions_en.length > 0
+      ? result.buyer_questions_en
+      : result?.buyer_questions_bangla || [];
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
       {/* Form Section */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-7 space-y-5">
         <div>
-          <h3 className="text-xl font-bold text-white font-sans">বিজ্ঞাপন যাচাই</h3>
+          <h3 className="text-xl font-bold text-white font-sans">{t('tabAdCheck')}</h3>
           <p className="text-xs sm:text-sm text-slate-300 mt-1 font-sans">
-            ফেসবুক বা অনলাইনের বিজ্ঞাপনের লেখা পেস্ট করুন অথবা স্ক্রিনশট আপলোড করে শর্ত ও পেমেন্ট ঝুঁকি পরীক্ষা করুন।
+            {t('tabAdCheckDesc')}
           </p>
         </div>
 
-        {/* Sample Links */}
+        {/* Sample Demonstration Scenarios */}
         <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-          <span className="text-slate-400 font-sans">নমুনা দেখুন:</span>
-          {SAMPLE_ADS.map((sample, idx) => (
+          <span className="text-slate-400 font-sans">{t('scenariosHeading')}</span>
+          {sampleScenarios.map((sample, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => loadSample(sample)}
               className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 min-h-[32px]"
             >
-              {sample.title}
+              {language === 'bn' ? sample.titleBn : sample.titleEn}
             </button>
           ))}
         </div>
@@ -147,9 +167,11 @@ export const AdQuickCheckView: React.FC = () => {
             <div className="flex items-center justify-between">
               <label htmlFor="ad-text-input" className="text-xs font-semibold text-slate-200 flex items-center gap-1.5 font-sans">
                 <FileText className="w-4 h-4 text-teal-400 shrink-0" aria-hidden="true" />
-                <span>বিজ্ঞাপনের বিবরণ (ক্যাপশন বা টেক্সট)</span>
+                <span>{t('adInputLabel')}</span>
               </label>
-              <span className="text-[11px] font-mono text-slate-400">{adText.length} অক্ষর</span>
+              <span className="text-[11px] font-mono text-slate-400">
+                {adText.length} {t('charCount')}
+              </span>
             </div>
             <textarea
               id="ad-text-input"
@@ -158,15 +180,15 @@ export const AdQuickCheckView: React.FC = () => {
                 setAdText(e.target.value);
                 if (error) setError(null);
               }}
-              placeholder="ফেসবুক পেজের বিজ্ঞাপনের ক্যাপশন বা পোস্টের লেখা এখানে পেস্ট করুন..."
+              placeholder={t('adPlaceholder')}
               rows={6}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus-visible:ring-2 focus-visible:ring-teal-400 transition-colors font-sans leading-relaxed"
             />
           </div>
 
           <ScreenshotUploader
-            label="স্ক্রিনশট আপলোড (ঐচ্ছিক)"
-            helperText="বিজ্ঞাপনের স্ক্রিনশট আপলোড করলে স্বয়ংক্রিয়ভাবে টেক্সট এক্সট্রাক্ট করা হবে।"
+            label={t('uploadScreenshotBtn')}
+            helperText={t('ocrDropHint')}
             sourceType="advertisement"
             existingText={adText}
             onConfirmText={(text, mode) => {
@@ -183,7 +205,7 @@ export const AdQuickCheckView: React.FC = () => {
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition-colors flex items-center gap-1.5 min-h-[44px]"
               >
                 <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>নতুন যাচাই</span>
+                <span>{t('clearBtn')}</span>
               </button>
             ) : <span />}
 
@@ -193,7 +215,7 @@ export const AdQuickCheckView: React.FC = () => {
               className="px-6 py-2.5 rounded-xl font-bold text-sm bg-teal-600 hover:bg-teal-500 text-white shadow-md transition-all focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-h-[44px]"
             >
               <Sparkles className="w-4 h-4" aria-hidden="true" />
-              <span>বিজ্ঞাপন বিশ্লেষণ করুন</span>
+              <span>{loading ? t('analyzingAdBtn') : t('analyzeAdBtn')}</span>
             </button>
           </div>
         </form>
@@ -202,8 +224,8 @@ export const AdQuickCheckView: React.FC = () => {
       {/* Loading State */}
       {loading && (
         <LoadingState
-          title="বিজ্ঞাপন বিশ্লেষণ চলছে..."
-          message="বিজ্ঞাপনের স্পষ্ট অঙ্গীকার, অসম্পূর্ণ শর্ত এবং পেমেন্ট ঝুঁকি পরীক্ষা করা হচ্ছে..."
+          title={t('loadingStateTitle')}
+          message={t('loadingStateDesc')}
         />
       )}
 
@@ -212,59 +234,70 @@ export const AdQuickCheckView: React.FC = () => {
         <ErrorState message={error} onRetry={() => handleAnalyze()} />
       )}
 
-      {/* Results Experience (Progressive Disclosure) */}
+      {/* Results Experience */}
       {result && !loading && (
         <div className="space-y-6">
-          {/* 1. সংক্ষেপে যা পাওয়া গেছে */}
+          {/* 1. Top Summary Banner (High-Level Assessment State) */}
+          <AssessmentSummaryBanner
+            assessment={result.overall_assessment}
+            summary={result.assessment_summary}
+          />
+
+          {/* 2. Product Authenticity Card */}
+          <ProductAuthenticityCard authenticity={result.product_authenticity} />
+
+          {/* 3. Summary of Extracted Terms */}
           <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-5 sm:p-6 space-y-4">
             <h4 className="text-base font-bold text-white font-sans flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-teal-400" aria-hidden="true" />
-              <span>সংক্ষেপে যা পাওয়া গেছে</span>
+              <span>{language === 'bn' ? 'বিজ্ঞাপনে পাওয়া দৃশ্যমান শর্তাবলী' : 'Observed Commercial Terms'}</span>
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-slate-400 block text-xs">পণ্য</span>
-                <span className="font-semibold text-slate-100">{claims?.product_name || 'নির্দিষ্ট নয়'}</span>
+                <span className="text-slate-400 block text-xs">{language === 'bn' ? 'পণ্য' : 'Product'}</span>
+                <span className="font-semibold text-slate-100">{claims?.product_name || (language === 'bn' ? 'নির্দিষ্ট নয়' : 'Not specified')}</span>
               </div>
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-slate-400 block text-xs">বিজ্ঞাপিত মূল্য</span>
+                <span className="text-slate-400 block text-xs">{language === 'bn' ? 'বিজ্ঞাপিত মূল্য' : 'Advertised Price'}</span>
                 <span className="font-semibold text-teal-300">
-                  {claims?.price ? `৳ ${claims.price.toLocaleString('bn-BD')}` : 'অনুল্লেখিত'}
+                  {claims?.price ? `৳ ${claims.price.toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US')}` : (language === 'bn' ? 'অনুল্লেখিত' : 'Not stated')}
                 </span>
               </div>
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-slate-400 block text-xs">ক্যাশ অন ডেলিভারি (সিওডি)</span>
+                <span className="text-slate-400 block text-xs">{language === 'bn' ? 'ক্যাশ অন ডেলিভারি (সিওডি)' : 'Cash on Delivery (COD)'}</span>
                 <span className="font-semibold text-slate-100">
                   {claims?.cod_available === true
-                    ? 'উপলব্ধ (Available)'
+                    ? (language === 'bn' ? 'উপলব্ধ (Available)' : 'Available')
                     : claims?.cod_available === false
-                    ? 'অনুপলব্ধ (Not Available)'
-                    : 'বিজ্ঞাপনে উল্লেখ নেই'}
+                    ? (language === 'bn' ? 'অনুপলব্ধ (Not Available)' : 'Explicitly Denied')
+                    : (language === 'bn' ? 'বিজ্ঞাপনে উল্লেখ নেই' : 'Not mentioned')}
                 </span>
               </div>
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-slate-400 block text-xs">ডেলিভারি ও অগ্রিম শর্ত</span>
+                <span className="text-slate-400 block text-xs">{language === 'bn' ? 'ডেলিভারি ও অগ্রিম শর্ত' : 'Delivery & Advance Terms'}</span>
                 <span className="font-semibold text-slate-100">
                   {claims?.advance_payment_required
-                    ? `অগ্রিম প্রয়োজন: ৳ ${claims.advance_payment_amount || 'অনির্দিষ্ট'}`
-                    : claims?.delivery_conditions || 'শর্ত উল্লেখ নেই'}
+                    ? (language === 'bn'
+                        ? `অগ্রিম প্রয়োজন: ৳ ${claims.advance_payment_amount || 'অনির্দিষ্ট'}`
+                        : `Advance required: ৳ ${claims.advance_payment_amount || 'Unspecified'}`)
+                    : claims?.delivery_conditions || (language === 'bn' ? 'শর্ত উল্লেখ নেই' : 'No conditions stated')}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* 2. গরমিল বা সতর্কতা */}
+          {/* 4. Payment Warnings & Considerations */}
           {result.payment_considerations.length > 0 && (
             <PaymentWarningsCard warnings={result.payment_considerations} />
           )}
 
-          {/* 3. যে তথ্যগুলো নিশ্চিত নয় */}
+          {/* 5. Missing Critical Information */}
           {result.missing_critical_info.length > 0 && (
             <div className="rounded-2xl bg-amber-950/15 border border-amber-500/30 p-5 space-y-3">
               <div className="flex items-center gap-2 text-amber-300 font-bold text-sm font-sans">
                 <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span>যে তথ্যগুলো বিজ্ঞাপনে নিশ্চিত নয় বা অনুপস্থিত</span>
+                <span>{t('missingInfoTitle')}</span>
               </div>
               <ul className="space-y-2 text-xs sm:text-sm text-slate-300 font-sans">
                 {result.missing_critical_info.map((item, idx) => (
@@ -280,21 +313,25 @@ export const AdQuickCheckView: React.FC = () => {
             </div>
           )}
 
-          {/* 4. কেনার আগে যা জিজ্ঞেস করবেন */}
-          {result.buyer_questions_bangla.length > 0 && (
+          {/* 6. Actionable Buyer Verification Questions (Bilingual with One-Click Copy) */}
+          {activeQuestions.length > 0 && (
             <BuyerQuestionsCard
-              questions={result.buyer_questions_bangla}
-              title="কেনার আগে বিক্রেতাকে যা জিজ্ঞেস করবেন"
-              description="বিজ্ঞাপনে যেসব তথ্য অস্পষ্ট, সেগুলো অর্ডার করার আগে ইনবক্সে কপি করে পাঠিয়ে নিশ্চিত করুন:"
+              questions={activeQuestions}
+              title={t('buyerQuestionsTitle')}
+              description={t('buyerQuestionsSubtitle')}
             />
           )}
 
-          {/* 5. বিস্তারিত প্রমাণ (Expandable) */}
+          {/* 7. Detailed Observable Findings (Expandable) */}
           <details className="group rounded-2xl border border-slate-800 bg-slate-900/40 p-4 transition-all">
             <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-300 hover:text-white select-none">
               <span className="flex items-center gap-2">
                 <Info className="w-4 h-4 text-teal-400" aria-hidden="true" />
-                <span>বিস্তারিত প্রমাণ ও সিস্টেম নোট ({result.findings.length} টি পর্যবেক্ষণ)</span>
+                <span>
+                  {language === 'bn'
+                    ? `বিস্তারিত প্রমাণ ও পর্যবেক্ষণ (${result.findings.length} টি)`
+                    : `Detailed Findings & Evidence (${result.findings.length} items)`}
+                </span>
               </span>
               <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
             </summary>
@@ -324,8 +361,8 @@ export const AdQuickCheckView: React.FC = () => {
       {/* Empty State */}
       {!result && !loading && !error && (
         <EmptyState
-          title="বিজ্ঞাপনের তথ্য যাচাই করুন"
-          description="ফেসবুক পেজ বা অনলাইন শপের বিজ্ঞাপনের ক্যাপশন পেস্ট করুন অথবা স্ক্রিনশট আপলোড করে প্রাথমিক ফাঁকফোকর ও শর্ত পরীক্ষা করুন।"
+          title={t('emptyStateTitle')}
+          description={t('emptyStateDesc')}
         />
       )}
     </div>

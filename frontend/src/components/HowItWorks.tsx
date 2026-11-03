@@ -1,24 +1,27 @@
 import React from 'react';
 import { FileText, Cpu, CheckCircle2 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export const HowItWorks: React.FC = () => {
+  const { t } = useLanguage();
+
   const steps = [
     {
       num: '১',
-      title: 'তথ্য দিন',
-      desc: 'বিজ্ঞাপনের লেখা পেস্ট করুন অথবা ফেসবুক পোস্ট/চ্যাটের স্ক্রিনশট আপলোড করুন।',
+      title: t('step1Title'),
+      desc: t('step1Desc'),
       icon: FileText,
     },
     {
       num: '২',
-      title: 'স্বয়ংক্রিয় বিশ্লেষণ',
-      desc: 'শপশিল্ড এআই বিজ্ঞাপিত শর্তের সাথে চ্যাটের অমিল ও অগ্রিম পেমেন্টের ঝুঁকি পরীক্ষা করবে।',
+      title: t('step2Title'),
+      desc: t('step2Desc'),
       icon: Cpu,
     },
     {
       num: '৩',
-      title: 'নিরাপদ সিদ্ধান্ত নিন',
-      desc: 'প্রস্তুত প্রশ্নগুলো বিক্রেতাকে পাঠিয়ে লিখিত প্রতিশ্রুতি নিশ্চিত করুন এবং নিরাপদে অর্ডার করুন।',
+      title: t('step3Title'),
+      desc: t('step3Desc'),
       icon: CheckCircle2,
     },
   ];
@@ -28,10 +31,10 @@ export const HowItWorks: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-sans tracking-tight">
-            কীভাবে কাজ করে?
+            {t('howItWorksHeading')}
           </h2>
           <p className="mt-3 text-sm sm:text-base text-slate-300 leading-relaxed font-sans">
-            মাত্র ৩টি সহজ ধাপে পণ্য কেনার আগেই সব শর্ত ও ঝুঁকি যাচাই করে নিন।
+            {t('howItWorksSubheading')}
           </p>
         </div>
 

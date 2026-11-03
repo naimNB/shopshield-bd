@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck, ExternalLink, Heart } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useLanguage } from '../context/LanguageContext';
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
@@ -9,6 +10,8 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' })
 );
 
 export const Footer: React.FC = () => {
+  const { t } = useLanguage();
+
   return (
     <footer className="border-t border-slate-800 bg-[#050913] py-12 text-slate-400 text-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -25,7 +28,7 @@ export const Footer: React.FC = () => {
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-300 max-w-sm leading-relaxed font-sans">
-              বাংলাদেশের অনলাইন ও সোশ্যাল কমার্সে সাধারণ ক্রেতাদের অধিকার ও আর্থিক নিরাপত্তা নিশ্চিত করতে তৈরি প্রমাণভিত্তিক এআই অ্যাসিস্ট্যান্ট।
+              {t('footerTagline')}
             </p>
             <p className="text-xs text-slate-400 font-mono">
               Developed by <strong className="text-slate-200">naimNB</strong> for YUNet AIgnite Buildathon 2026.

@@ -6,7 +6,14 @@ Crucially: An advance bKash or Nagad payment request does NOT imply fraud.
 """
 
 from datetime import datetime, timezone
-from typing import List, Tuple, Any
+import re
+from typing import List, Tuple, Any, Optional
+
+from backend.app.schemas.assessment import (
+    AssessmentState,
+    AssessmentSummary,
+    ProductAuthenticityAssessment,
+)
 from backend.app.schemas.claims import ExtractedClaims
 from backend.app.schemas.comparison import ComparisonItem, ContradictionStatus
 from backend.app.schemas.rules import PaymentWarning, PaymentWarningType, MissingInfoItem
@@ -406,4 +413,256 @@ class PaymentRulesEngine:
             )
 
         return findings
+
+
+QUESTION_MAPPINGS_BN_TO_EN = {
+    "আমি কি সম্পূর্ণ মূল্য অগ্রিম না দিয়ে শুধুমাত্র কুরিয়ার চার্জ অগ্রিম দিয়ে বাকি টাকা প্রোডাক্ট হাতে পেয়ে পরিশোধ করতে পারি?":
+        "Can I pay only the courier delivery charge in advance and pay the remaining product price on Cash on Delivery (COD)?",
+    "অগ্রিম কুরিয়ার চার্জ পাঠানোর জন্য আপনাদের কি অফিসিয়াল বিকাশ/নগদ মার্চেন্ট নম্বর বা পেমেন্ট লিংক আছে?":
+        "Do you have an official bKash/Nagad merchant payment number or checkout link for the courier charge advance?",
+    "পণ্য ডেলিভারি পেতে দেরি হলে বা কোনো কারণে অর্ডার বাতিল হলে এই বুকিং ফি কি সম্পূর্ণ ফেরতযোগ্য?":
+        "Is this booking fee fully refundable if delivery is delayed or if the order is cancelled?",
+    "অগ্রিম দেওয়ার পর ডেলিভারির সময় আর কত টাকা দিতে হবে? ইনভয়েসে কি অগ্রিম টাকার উল্লেখ থাকবে?":
+        "After this advance, how much balance will remain due on delivery? Will the official invoice reflect the advance payment?",
+    "এই অগ্রিম টাকাটি কি শুধুমাত্র কুরিয়ার ডেলিভারি চার্জ বাবদ, নাকি পণ্যের মূল্যের অংশ?":
+        "Is this advance payment specifically for courier shipping charges, or is it partial payment towards the product price?",
+    "আপনাদের বিজ্ঞাপনে ক্যাশ অন ডেলিভারি উল্লেখ ছিল, চ্যাটে কেন সম্পূর্ণ অগ্রিম চাওয়া হচ্ছে?":
+        "Your advertisement stated Cash on Delivery is available; why is 100% full advance payment being requested in chat?",
+    "ক্যাশ অন ডেলিভারি সুবিধা না থাকলে, কুরিয়ার অফিস বা কোনো নিরাপদ পেমেন্ট মাধ্যমে লেনদেনের বিকল্প আছে কি?":
+        "If Cash on Delivery is unavailable, can we transact via a courier branch collection or escrow payment method?",
+    "পণ্য যদি সম্পূর্ণ ত্রুটিপূর্ণ বা ক্ষতিগ্রস্ত পৌঁছায়, সেক্ষেত্রে কি কোনো এক্সচেঞ্জ সুবিধা থাকবে?":
+        "If the product arrives damaged or defective, what is your official exchange or replacement policy?",
+    "পণ্যটি যদি ত্রুটিযুক্ত বা ক্ষতিগ্রস্ত পাওয়া যায়, তবে কতদিনের মধ্যে রিটার্ন বা রিপ্লেসমেন্টের সুযোগ থাকবে?":
+        "Within how many days can I request a return or replacement if the product has defects or transit damage?",
+    "পণ্যটির ডেলিভারি চার্জসহ মোট নির্ধারিত চূড়ান্ত বিক্রয়মূল্য কত টাকা?":
+        "What is the final total price of the product including all delivery and packaging charges?",
+    "পণ্যটির ডেলিভারি চার্জসহ মোট নির্ধারিত চূড়ান্ত বিক্রয়মূল্য কত টাকা পড়বে?":
+        "What is the final total price of the product including all delivery and packaging charges?",
+    "ঢাকা এবং ঢাকার বাইরে কুরিয়ার ডেলিভারি চার্জ কত টাকা পড়বে এবং কত কার্যদিবসের মধ্যে ডেলিভারি হবে?":
+        "What is the exact delivery charge for inside/outside Dhaka, and how many business days will delivery take?",
+    "পণ্য হাতে পেয়ে মূল্য পরিশোধ (ক্যাশ অন ডেলিভারি) করার সুবিধা আছে কি?":
+        "Is Cash on Delivery (payment upon receipt and parcel inspection) supported?",
+    "পণ্যটিতে কোনো ত্রুটি, ক্ষতি বা সাইজের অমিল থাকলে কতদিনের মধ্যে রিটার্ন বা রিপ্লেসমেন্টের সুযোগ পাব?":
+        "If there is any defect, damage, or size mismatch, within how many days can I request a return or replacement?",
+    "এই পণ্যের সাথে কি কোনো অফিসিয়াল বা শপ ওয়ারেন্টি রয়েছে? ওয়ারেন্টি কার্ড প্রদান করা হবে কি?":
+        "Does this product come with an official brand or shop warranty, and will an official warranty card be included?",
+    "বিজ্ঞাপনে উল্লেখিত 'শর্ত প্রযোজ্য' এর নির্দিষ্ট শর্তগুলো কী কী?":
+        "What are the specific conditions referred to by 'Terms and Conditions Apply' in the advertisement?",
+    "পণ্যটি কি ব্র্যান্ডের ১০০% আসল পণ্য এবং এর সত্যতা নিশ্চিত করার কি কোনো যাচাইযোগ্য উপায় (যেমন বারকোড/কিউআর কোড) আছে?":
+        "Is this an authentic original branded product, and is there a verifiable serial, barcode, or distributor seal to verify it?",
+    "ওয়ারেন্টির সুনির্দিষ্ট মেয়াদ কতদিন (যেমন: কত মাস বা বছর) এবং এর আওতাভুক্ত শর্তাবলী কী?":
+        "What is the exact duration of the warranty (months or years), and what are the specific coverage terms?",
+    "অর্ডার কনফার্ম করার জন্য অগ্রিম কত টাকা পাঠাতে হবে এবং তা কি শুধুমাত্র কুরিয়ার চার্জ বাবদ?":
+        "How much advance payment is required to confirm the order, and is it exclusively for courier delivery charges?",
+    "পণ্যটি কি সম্পূর্ণ নতুন ও ইনট্যাক্ট বক্স, নাকি ডিসপ্লে/রিফার্বিশড ইউনিট?":
+        "Is the product brand new in an intact factory-sealed box, or is it a display/refurbished unit?",
+    "কুরিয়ার থেকে পার্সেল রিসিভ করার সময় ডেলিভারিম্যানের সামনে খুলে দেখার (Open-box inspection) অনুমতি থাকবে কি?":
+        "Will I be permitted to inspect the item in front of the delivery agent (Open-box inspection) before signing for the parcel?",
+    "কুরিয়ার থেকে পার্সেল গ্রহণের সময় ডেলিভারিম্যানের সামনে খুলে দেখার (Open-box inspection) অনুমতি থাকবে কি?":
+        "Will I be permitted to inspect the item in front of the delivery agent (Open-box inspection) before signing for the parcel?",
+    "পণ্য ক্ষতিগ্রস্ত বা ভুল সাইজ পৌঁছালে তার দায়ভার কে বহন করবে? কোনো এক্সচেঞ্জ সুবিধা থাকবে কি?":
+        "Who covers return expenses if the item arrives damaged or in the wrong size? Is an immediate exchange guaranteed?",
+}
+
+
+def map_bangla_questions_to_english(questions_bn: List[str]) -> List[str]:
+    """Deterministically map generated Bangla buyer verification questions to fluent English."""
+    results: List[str] = []
+    for q in questions_bn:
+        if q in QUESTION_MAPPINGS_BN_TO_EN:
+            results.append(QUESTION_MAPPINGS_BN_TO_EN[q])
+        else:
+            # Fallback natural English query
+            results.append("Please verify the commercial terms and inspect the parcel upon delivery.")
+    return results
+
+
+def evaluate_product_authenticity(text: str, product_name: Optional[str] = None) -> ProductAuthenticityAssessment:
+    """Evaluate product authenticity claims with strict responsible AI guardrails."""
+    if not text or not text.strip():
+        return ProductAuthenticityAssessment(
+            status="INSUFFICIENT_EVIDENCE",
+            status_label_bn="অপর্যাপ্ত তথ্য",
+            status_label_en="Insufficient Evidence",
+            claim_detected=False,
+            claim_evidence=None,
+            explanation_bn="পণ্যের আসল বা নকল যাচাই করার জন্য কোনো বিবরণ পাওয়া যায়নি।",
+            explanation_en="No product text available to assess authenticity claims.",
+            verification_steps_bn=[],
+            verification_steps_en=[],
+        )
+
+    # Check for originality / authenticity claims
+    pattern = r"(?:(?:100%|১০০%)\s*(?:original|authentic|genuine|export\s*quality|অরিজিনাল|অরজিনাল|আসল|খাঁটি|জেনুইন)|শতাভাগ\s*আসল|একদম\s*(?:অরিজিনাল|অরজিনাল|আসল)|অরিজিনাল\s*প্রোডাক্ট|authentic\s*product|genuine\s*product|master\s*copy)"
+    match = re.search(pattern, text, re.IGNORECASE)
+
+    verification_steps_bn = [
+        "ব্র্যান্ডের অনুমোদিত ডিলার বা অফিসিয়াল আমদানিকারকের স্টিকার/সার্টিফিকেট আছে কিনা দেখুন।",
+        "বক্সের বারকোড, কিউআর কোড বা আইএমইআই (IMEI) নম্বর অফিসিয়াল ব্র্যান্ড ওয়েবসাইটে যাচাই করুন।",
+        "ডেলিভারি গ্রহণের সময় কুরিয়ারের সামনে পার্সেল খুলে (Open-box delivery) সিল ও পণ্যের গুণমান নিশ্চিত করুন।",
+        "বাজার মূল্যের চেয়ে অস্বাভাবিক কম মূল্যে বিক্রি হলে সতর্ক থাকুন (অতিরিক্ত কম দামে সাধারণত আসল পণ্য পাওয়া যায় না)।",
+    ]
+    verification_steps_en = [
+        "Check for official brand authorized distributor/importer sticker or warranty card.",
+        "Verify the product barcode, serial number, or IMEI on the official manufacturer website.",
+        "Insist on Open-Box Delivery to inspect physical packaging, seal integrity, and build quality before paying.",
+        "Beware of prices significantly below market average; genuine items are rarely sold at massive discounts.",
+    ]
+
+    if match:
+        start = max(0, text.rfind(".", 0, match.start()), text.rfind("।", 0, match.start()), text.rfind("\n", 0, match.start()))
+        if start > 0:
+            start += 1
+        end = len(text)
+        for delim in (".", "।", "\n", "!", "?"):
+            pos = text.find(delim, match.end())
+            if pos != -1 and pos < end:
+                end = pos
+        evidence = text[start:end].strip() or match.group(0).strip()
+
+        return ProductAuthenticityAssessment(
+            status="CLAIMED_ORIGINAL",
+            status_label_bn="আসল বলে দাবি করা হয়েছে (স্বাধীনভাবে যাচাইকৃত নয়)",
+            status_label_en="Claimed as Original (Not independently verified)",
+            claim_detected=True,
+            claim_evidence=evidence,
+            explanation_bn=(
+                "বিজ্ঞাপনে বা বিক্রেতার চ্যাটে পণ্যটিকে 'আসল/অরিজিনাল' দাবি করা হয়েছে। "
+                "তবে অনলাইন পোস্ট বা স্ক্রিনশটের মাধ্যমে পণ্যের বাহ্যিক বা আসল-নকল অবস্থা নিশ্চিত করা অসম্ভব।"
+            ),
+            explanation_en=(
+                "The seller claims this item is original/authentic. "
+                "However, online advertisements and chat statements cannot independently verify physical product authenticity."
+            ),
+            verification_steps_bn=verification_steps_bn,
+            verification_steps_en=verification_steps_en,
+        )
+
+    return ProductAuthenticityAssessment(
+        status="NOT_INDEPENDENTLY_VERIFIED",
+        status_label_bn="স্বাধীনভাবে যাচাইকৃত নয়",
+        status_label_en="Not independently verified",
+        claim_detected=False,
+        claim_evidence=None,
+        explanation_bn=(
+            "অনলাইন বিজ্ঞাপন বা বার্তার মাধ্যমে পণ্যের সত্যতা নিশ্চিত করা যায় না। "
+            "ডেলিভারির সময় পণ্য ও প্যাকেজিং সরাসরি পরীক্ষা করুন।"
+        ),
+        explanation_en=(
+            "Physical product authenticity cannot be verified from online text or screenshots. "
+            "Always inspect packaging and serials upon delivery."
+        ),
+        verification_steps_bn=verification_steps_bn,
+        verification_steps_en=verification_steps_en,
+    )
+
+
+def determine_overall_assessment_ad(
+    ad_text: str,
+    claims: ExtractedClaims,
+    payment_considerations: List[PaymentWarning],
+    missing_critical_info: List[MissingInfoItem],
+    ambiguous_statements: List[str],
+) -> Tuple[AssessmentState, AssessmentSummary]:
+    """Evaluate advertisement text and findings to determine overall safety assessment state."""
+    clean_text = ad_text.strip()
+    has_substantive_claims = (
+        claims.price is not None
+        or claims.cod_available is not None
+        or claims.advance_payment_required is not None
+        or claims.return_policy_available is not None
+        or claims.warranty_available is not None
+        or bool(payment_considerations)
+    )
+    if not has_substantive_claims or len(clean_text) < 35:
+        return (
+            "INSUFFICIENT_EVIDENCE",
+            AssessmentSummary(
+                headline_bn="অপর্যাপ্ত তথ্য — যাচাই সম্ভব হয়নি",
+                headline_en="Insufficient Evidence — Verification Inconclusive",
+                explanation_bn="বিজ্ঞাপনে মূল তথ্য (যেমন পণ্যের নাম, দাম, বা ডেলিভারির শর্ত) পাওয়া যায়নি। বিস্তারিত তথ্যসহ আবার চেষ্টা করুন।",
+                explanation_en="The advertisement lacks core terms such as product details, price, or delivery conditions.",
+                primary_action_bn="বিক্রেতার থেকে পণ্যের পূর্ণাঙ্গ বিবরণ ও পেমেন্ট শর্ত জেনে নিন।",
+                primary_action_en="Ask the seller for complete product descriptions and clear commercial terms.",
+            ),
+        )
+
+    has_high_warning = any(w.severity in ("warning", "caution") for w in payment_considerations)
+    missing_core = any(m.field in ("price", "cod") for m in missing_critical_info)
+
+    if has_high_warning or missing_core:
+        return (
+            "WARNING_SIGNS_FOUND",
+            AssessmentSummary(
+                headline_bn="সতর্কতা সংকেত চিহ্নিত হয়েছে",
+                headline_en="Warning Signs Detected",
+                explanation_bn="বিজ্ঞাপনে ঝুঁকিপূর্ণ পেমেন্ট শর্ত বা গুরুত্বপূর্ণ তথ্যের ঘাটতি পাওয়া গেছে (যেমন: সম্পূর্ণ অগ্রিম পেমেন্টের চাপ বা গোপন মূল্য)।",
+                explanation_en="Warning signs were detected in this ad (such as full advance payment demands, undisclosed price, or missing COD).",
+                primary_action_bn="অগ্রিম সম্পূর্ণ টাকা পরিশোধ করবেন না। শুধুমাত্র কুরিয়ার চার্জ দিয়ে বাকি টাকা ক্যাশ অন ডেলিভারিতে দিন।",
+                primary_action_en="Do not pay in full in advance. Insist on paying only courier shipping advance and remaining on Cash on Delivery.",
+            ),
+        )
+
+    return (
+        "NO_SPECIFIC_WARNING_SIGNS_FOUND",
+        AssessmentSummary(
+            headline_bn="কোনো নির্দিষ্ট সতর্কতা পাওয়া যায়নি",
+            headline_en="No Specific Warning Signs Found",
+            explanation_bn="বিজ্ঞাপনের দৃশ্যমান শর্তাবলীতে স্পষ্ট কোনো অসঙ্গতি পাওয়া যায়নি। মনে রাখবেন: এটি বিক্রেতার সততা বা আসল পণ্যের চূড়ান্ত নিশ্চয়তা নয়।",
+            explanation_en="No explicit predatory terms were identified in the visible advertisement text. Note: This does NOT guarantee seller legitimacy.",
+            primary_action_bn="অর্ডার করার আগে কুরিয়ার চার্জ এবং ওপেন-বক্স ডেলিভারির সুবিধা নিশ্চিত করুন।",
+            primary_action_en="Confirm courier charges and open-box inspection before finalizing your order.",
+        ),
+    )
+
+
+def determine_overall_assessment_comparison(
+    ad_text: str,
+    chat_text: str,
+    comparison_results: List[ComparisonItem],
+    warnings: List[PaymentWarning],
+    missing_info: List[MissingInfoItem],
+) -> Tuple[AssessmentState, AssessmentSummary]:
+    """Evaluate comparison results to determine overall safety assessment state for Ad vs Chat."""
+    if len(ad_text.strip()) < 20 and len(chat_text.strip()) < 20:
+        return (
+            "INSUFFICIENT_EVIDENCE",
+            AssessmentSummary(
+                headline_bn="অপর্যাপ্ত তথ্য — যাচাই সম্ভব হয়নি",
+                headline_en="Insufficient Evidence — Verification Inconclusive",
+                explanation_bn="বিজ্ঞাপন বা চ্যাটের টেক্সট অত্যন্ত সংক্ষিপ্ত হওয়ায় তুলনা সম্পন্ন করা যায়নি।",
+                explanation_en="Provided advertisement or chat text is too brief to conduct meaningful promise comparison.",
+                primary_action_bn="বিজ্ঞাপনের সম্পূর্ণ ক্যাপশন এবং চ্যাটের মূল কথোপকথন প্রদান করুন।",
+                primary_action_en="Provide more complete conversation excerpts or post captions.",
+            ),
+        )
+
+    has_contradiction = any(c.status == ContradictionStatus.CONTRADICTION for c in comparison_results)
+    has_warning = any(w.severity in ("warning", "caution") for w in warnings)
+
+    if has_contradiction or has_warning:
+        return (
+            "WARNING_SIGNS_FOUND",
+            AssessmentSummary(
+                headline_bn="সতর্কতা সংকেত ও গরমিল পাওয়া গেছে",
+                headline_en="Warning Signs & Inconsistencies Detected",
+                explanation_bn="বিজ্ঞাপনের প্রতিশ্রুতি এবং বিক্রেতার চ্যাটের মধ্যে স্পষ্ট গরমিল বা ঝুঁকিপূর্ণ পেমেন্ট শর্ত পাওয়া গেছে।",
+                explanation_en="Direct contradictions between the public advertisement and private chat, or elevated payment risks, were detected.",
+                primary_action_bn="অগ্রিম টাকা পাঠানোর আগে বিজ্ঞাপনের পোস্ট দেখিয়ে চ্যাটে লিখিতভাবে প্রতিশ্রুতির মিল নিশ্চিত করুন।",
+                primary_action_en="Do not send advance funds until the seller resolves contradictory terms in writing.",
+            ),
+        )
+
+    return (
+        "NO_SPECIFIC_WARNING_SIGNS_FOUND",
+        AssessmentSummary(
+            headline_bn="কোনো নির্দিষ্ট সতর্কতা বা গরমিল পাওয়া যায়নি",
+            headline_en="No Specific Warning Signs or Contradictions Found",
+            explanation_bn="বিজ্ঞাপন ও চ্যাটের মধ্যে দৃশ্যমান গরমিল পাওয়া যায়নি। মনে রাখবেন: এটি বিক্রেতার সততা বা আসল পণ্যের চূড়ান্ত নিশ্চয়তা নয়।",
+            explanation_en="No explicit contradictions or elevated warning signs were identified. Note: This does NOT guarantee merchant trustworthiness.",
+            primary_action_bn="শুধুমাত্র ডেলিভারির সময় পণ্য যাচাই করে বাকি টাকা পরিশোধ করুন।",
+            primary_action_en="Inspect product condition in person upon delivery before paying the remaining balance.",
+        ),
+    )
+
 

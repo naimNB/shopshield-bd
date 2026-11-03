@@ -25,6 +25,11 @@ from backend.app.schemas.rules import MissingInfoItem, PaymentWarning, PaymentWa
 from backend.app.schemas.seller_history import SourceType, VerificationStatus
 from backend.app.schemas.unified_evidence import UnifiedFinding, UnifiedFindingStatus
 from backend.app.services.ai_extractor import AIExtractorService
+from backend.app.services.rules_engine import (
+    evaluate_product_authenticity,
+    determine_overall_assessment_ad,
+    map_bangla_questions_to_english,
+)
 
 
 class AdAnalyzer:
@@ -623,6 +628,24 @@ class AdAnalyzer:
                 seen_q.add(q)
                 deduped_questions.append(q)
 
+        # Determine overall assessment and summary
+        overall_assessment, assessment_summary = determine_overall_assessment_ad(
+            ad_text=ad_text,
+            claims=claims,
+            payment_considerations=payment_considerations,
+            missing_critical_info=missing_critical_info,
+            ambiguous_statements=ambiguous_statements,
+        )
+
+        # Evaluate product authenticity
+        product_authenticity = evaluate_product_authenticity(
+            text=ad_text,
+            product_name=claims.product_name,
+        )
+
+        # Generate English buyer questions
+        questions_en = map_bangla_questions_to_english(deduped_questions)
+
         elapsed_ms = (time.time() - start_time) * 1000.0
         model_str = getattr(self.extractor, "model_name", None)
         if model_str is not None:
@@ -637,6 +660,9 @@ class AdAnalyzer:
 
         return AdAnalysisResponse(
             status="success",
+            overall_assessment=overall_assessment,
+            assessment_summary=assessment_summary,
+            product_authenticity=product_authenticity,
             advertisement_claims=claims,
             findings=findings,
             explicit_terms=explicit_terms,
@@ -644,6 +670,7 @@ class AdAnalyzer:
             ambiguous_statements=ambiguous_statements,
             payment_considerations=payment_considerations,
             buyer_questions_bangla=deduped_questions,
+            buyer_questions_en=questions_en,
             source_coverage="ADVERTISEMENT_ONLY",
             metadata=metadata,
         )

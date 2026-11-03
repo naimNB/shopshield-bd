@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HelpCircle, Copy, Check, MessageSquare } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface BuyerQuestionsCardProps {
   questions: string[];
@@ -9,11 +10,15 @@ interface BuyerQuestionsCardProps {
 
 export const BuyerQuestionsCard: React.FC<BuyerQuestionsCardProps> = ({
   questions,
-  title = 'বিক্রেতাকে নিশ্চিতকরণের জন্য জিজ্ঞাসা করুন',
-  description = 'পণ্য অর্ডার করার আগে নিচের সুনির্দিষ্ট প্রশ্নগুলো বিক্রেতার ফেসবুক ইনবক্স বা হোয়াটসঅ্যাপে কপি করে পাঠান:',
+  title,
+  description,
 }) => {
+  const { t } = useLanguage();
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+
+  const cardTitle = title || t('buyerQuestionsTitle');
+  const cardDesc = description || t('buyerQuestionsSubtitle');
 
   if (!questions || questions.length === 0) return null;
 
@@ -47,9 +52,9 @@ export const BuyerQuestionsCard: React.FC<BuyerQuestionsCardProps> = ({
           </div>
           <div>
             <h4 className="font-bold text-teal-200 text-sm sm:text-base font-sans">
-              {title}
+              {cardTitle}
             </h4>
-            <p className="text-xs text-slate-300 mt-0.5">{description}</p>
+            <p className="text-xs text-slate-300 mt-0.5">{cardDesc}</p>
           </div>
         </div>
 
@@ -58,10 +63,10 @@ export const BuyerQuestionsCard: React.FC<BuyerQuestionsCardProps> = ({
             type="button"
             onClick={handleCopyAll}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-teal-600 hover:bg-teal-500 text-white transition-colors shadow-sm focus-visible:ring-2 focus-visible:ring-teal-400 min-h-[40px]"
-            aria-label="সব প্রশ্ন একসাথে ক্লিপবোর্ডে কপি করুন"
+            aria-label={t('copyQuestionsBtn')}
           >
             {copiedAll ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
-            <span>{copiedAll ? 'সব কপি হয়েছে!' : 'সব প্রশ্ন কপি করুন'}</span>
+            <span>{copiedAll ? t('copiedQuestionsBtn') : t('copyQuestionsBtn')}</span>
           </button>
         )}
       </div>
@@ -84,8 +89,8 @@ export const BuyerQuestionsCard: React.FC<BuyerQuestionsCardProps> = ({
               <button
                 type="button"
                 onClick={() => handleCopySingle(question, idx)}
-                title="প্রশ্নটি কপি করুন"
-                aria-label={`প্রশ্ন ${idx + 1} কপি করুন: ${question}`}
+                title="Copy question"
+                aria-label={`Copy question ${idx + 1}`}
                 className={`flex-shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors min-h-[42px] focus-visible:ring-2 focus-visible:ring-teal-400 ${
                   isCopied
                     ? 'bg-teal-500/20 text-teal-300 border-teal-500/50'
@@ -95,12 +100,12 @@ export const BuyerQuestionsCard: React.FC<BuyerQuestionsCardProps> = ({
                 {isCopied ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-teal-400" aria-hidden="true" />
-                    <span>কপি হয়েছে</span>
+                    <span>{t('copiedQuestionsBtn')}</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-                    <span>কপি</span>
+                    <span>{t('copyQuestionsBtn')}</span>
                   </>
                 )}
               </button>
