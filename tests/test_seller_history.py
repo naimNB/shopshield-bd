@@ -572,6 +572,55 @@ def test_consolidated_seller_history_with_timeline_needs_review():
     assert creation_f.verification_status == VerificationStatus.NEEDS_REVIEW
 
 
+def test_consolidated_report_retrieval_date_non_empty_and_stable_finding_ids():
+    """Verify retrieval_date is valid ISO string and finding IDs are stable even for unprovided data."""
+    report_service = SellerHistoryService()
+    report = report_service.generate_report(transparency_data=None, website_url=None)
+    assert report.status == "success"
+    assert len(report.unverified_or_unavailable) == 2
+
+    for finding in report.unverified_or_unavailable:
+        # Must have non-empty retrieval_date
+        assert finding.retrieval_date is not None
+        assert len(finding.retrieval_date) >= 19
+        assert "T" in finding.retrieval_date
+        assert finding.finding_id in ("page_transparency_unprovided", "website_archive_unprovided")
+
+
+def test_consolidated_report_distinct_failure_states_no_leak():
+    """Verify distinct external failure states (RATE_LIMITED, TIMEOUT, etc.) are preserved without leaking raw exception."""
+    service = SellerHistoryService()
+
+    # 1. Rate Limit
+    with patch.object(service.wayback_service, "fetch_website_history", side_effect=WaybackRateLimitError):
+        rep = service.generate_report(website_url="https://example.com")
+        f = next(item for item in rep.unverified_or_unavailable if item.field_name == "website_archive_presence")
+        assert f.observed_value == "RATE_LIMITED"
+        assert f.review_reason == "Archive rate limit reached"
+        assert "temporarily throttled" in f.limitations
+
+    # 2. Timeout
+    with patch.object(service.wayback_service, "fetch_website_history", side_effect=WaybackTimeoutError):
+        rep = service.generate_report(website_url="https://example.com")
+        f = next(item for item in rep.unverified_or_unavailable if item.field_name == "website_archive_presence")
+        assert f.observed_value == "TIMEOUT"
+        assert f.review_reason == "Archive query timed out"
+
+    # 3. Payload Too Large
+    with patch.object(service.wayback_service, "fetch_website_history", side_effect=WaybackPayloadTooLargeError):
+        rep = service.generate_report(website_url="https://example.com")
+        f = next(item for item in rep.unverified_or_unavailable if item.field_name == "website_archive_presence")
+        assert f.observed_value == "PAYLOAD_TOO_LARGE"
+
+    # 4. SSRF Validation Error
+    with patch.object(service.wayback_service, "fetch_website_history", side_effect=SSRFValidationError("Restricted")):
+        rep = service.generate_report(website_url="http://127.0.0.1")
+        f = next(item for item in rep.unverified_or_unavailable if item.field_name == "website_archive_presence")
+        assert f.observed_value == "INVALID_DESTINATION"
+        assert "Restricted" not in f.evidence_text  # No raw exception leak
+
+
+
 # ============================================================================
 # 5. REAL AUTHORIZED LIVE CALL TESTS
 # ============================================================================
@@ -592,8 +641,8 @@ def test_live_authorized_wayback_cdx_call():
         # Verify that earliest snapshot year is between 2012 and 2018
         earliest_year = int(resp.website_data.earliest_snapshot.formatted_date[:4])
         assert 2010 <= earliest_year <= 2018
-    except (WaybackTimeoutError, WaybackRateLimitError):
-        pytest.skip("Internet Archive Wayback Machine API is currently rate-limited or timed out.")
+    except (WaybackTimeoutError, WaybackRateLimitError, WaybackSourceUnavailableError) as e:
+        pytest.skip(f"Internet Archive Wayback Machine API is unavailable or rate-limited: {e}")
 
 
 @pytest.mark.skipif(

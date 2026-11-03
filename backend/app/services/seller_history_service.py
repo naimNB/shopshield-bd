@@ -6,9 +6,18 @@ Separates independently retrieved web evidence from user-provided unverified evi
 Never produces arbitrary fraud scores, scam percentages, or accusations.
 """
 
-from typing import List, Optional
+from datetime import datetime, timezone
+import hashlib
 import logging
+from typing import List, Optional
 
+from backend.app.core.errors import (
+    SSRFValidationError,
+    WaybackPayloadTooLargeError,
+    WaybackRateLimitError,
+    WaybackSourceUnavailableError,
+    WaybackTimeoutError,
+)
 from backend.app.schemas.seller_history import (
     EvidenceFinding,
     PageTransparencyData,
@@ -44,6 +53,7 @@ class SellerHistoryService:
         unverified_or_unavailable: List[EvidenceFinding] = []
         buyer_questions: List[str] = []
         summary_points: List[str] = []
+        now_iso = datetime.now(timezone.utc).isoformat()
 
         # 1. Process Page Transparency Data if available
         if transparency_data:
@@ -68,8 +78,10 @@ class SellerHistoryService:
 
         # 2. Process Website Archive Data if URL provided
         if website_url and website_url.strip():
+            clean_url = website_url.strip()
+            domain_hash = hashlib.md5(clean_url.lower().encode("utf-8")).hexdigest()[:8]
             try:
-                web_resp = self.wayback_service.fetch_website_history(website_url)
+                web_resp = self.wayback_service.fetch_website_history(clean_url)
                 for f in web_resp.findings:
                     if f.verification_status == VerificationStatus.INDEPENDENTLY_RETRIEVED:
                         independently_retrieved.append(f)
@@ -85,20 +97,100 @@ class SellerHistoryService:
                     )
                 else:
                     summary_points.append("Website: No historical archive snapshots found")
-            except Exception as e:
-                logger.warning("Could not fetch website history for '%s': %s", website_url, e)
+            except WaybackRateLimitError:
                 unverified_or_unavailable.append(
                     EvidenceFinding(
-                        finding_id="website_archive_presence",
+                        finding_id=f"wb_presence_{domain_hash}",
+                        field_name="website_archive_presence",
+                        field_label="Website Archive Presence",
+                        observed_value="RATE_LIMITED",
+                        source_type=SourceType.INTERNET_ARCHIVE_CDX,
+                        retrieval_date=now_iso,
+                        evidence_text="Internet Archive rate limit reached.",
+                        verification_status=VerificationStatus.UNAVAILABLE,
+                        evidence_confidence="DATA_UNAVAILABLE",
+                        review_reason="Archive rate limit reached",
+                        limitations="Internet Archive rate limit reached. Historical lookup temporarily throttled.",
+                    )
+                )
+            except WaybackTimeoutError:
+                unverified_or_unavailable.append(
+                    EvidenceFinding(
+                        finding_id=f"wb_presence_{domain_hash}",
+                        field_name="website_archive_presence",
+                        field_label="Website Archive Presence",
+                        observed_value="TIMEOUT",
+                        source_type=SourceType.INTERNET_ARCHIVE_CDX,
+                        retrieval_date=now_iso,
+                        evidence_text="Archive query connection timed out.",
+                        verification_status=VerificationStatus.UNAVAILABLE,
+                        evidence_confidence="DATA_UNAVAILABLE",
+                        review_reason="Archive query timed out",
+                        limitations="Internet Archive connection timed out while querying CDX index.",
+                    )
+                )
+            except WaybackPayloadTooLargeError:
+                unverified_or_unavailable.append(
+                    EvidenceFinding(
+                        finding_id=f"wb_presence_{domain_hash}",
+                        field_name="website_archive_presence",
+                        field_label="Website Archive Presence",
+                        observed_value="PAYLOAD_TOO_LARGE",
+                        source_type=SourceType.INTERNET_ARCHIVE_CDX,
+                        retrieval_date=now_iso,
+                        evidence_text="Archive index payload exceeded safe limit.",
+                        verification_status=VerificationStatus.UNAVAILABLE,
+                        evidence_confidence="DATA_UNAVAILABLE",
+                        review_reason="Archive response too large",
+                        limitations="Internet Archive CDX response exceeded the maximum safe limit of 1 MB.",
+                    )
+                )
+            except SSRFValidationError:
+                unverified_or_unavailable.append(
+                    EvidenceFinding(
+                        finding_id=f"wb_presence_{domain_hash}",
+                        field_name="website_archive_presence",
+                        field_label="Website Archive Presence",
+                        observed_value="INVALID_DESTINATION",
+                        source_type=SourceType.INTERNET_ARCHIVE_CDX,
+                        retrieval_date=now_iso,
+                        evidence_text="Destination address failed security verification.",
+                        verification_status=VerificationStatus.UNAVAILABLE,
+                        evidence_confidence="DATA_UNAVAILABLE",
+                        review_reason="Restricted or invalid destination address",
+                        limitations="The provided website address failed destination security validation.",
+                    )
+                )
+            except WaybackSourceUnavailableError:
+                unverified_or_unavailable.append(
+                    EvidenceFinding(
+                        finding_id=f"wb_presence_{domain_hash}",
                         field_name="website_archive_presence",
                         field_label="Website Archive Presence",
                         observed_value="SOURCE_UNAVAILABLE",
                         source_type=SourceType.INTERNET_ARCHIVE_CDX,
-                        retrieval_date="",
-                        evidence_text=f"Failed to query archive: {str(e)}",
+                        retrieval_date=now_iso,
+                        evidence_text="Archive source service error or malformed response.",
                         verification_status=VerificationStatus.UNAVAILABLE,
                         evidence_confidence="DATA_UNAVAILABLE",
-                        review_reason=str(e),
+                        review_reason="Archive source unavailable",
+                        limitations="Internet Archive service returned a server error or malformed response.",
+                    )
+                )
+            except Exception as e:
+                logger.warning("Could not fetch website history for '%s': %s", clean_url, type(e).__name__)
+                unverified_or_unavailable.append(
+                    EvidenceFinding(
+                        finding_id=f"wb_presence_{domain_hash}",
+                        field_name="website_archive_presence",
+                        field_label="Website Archive Presence",
+                        observed_value="SOURCE_UNAVAILABLE",
+                        source_type=SourceType.INTERNET_ARCHIVE_CDX,
+                        retrieval_date=now_iso,
+                        evidence_text="Failed to query external archive service.",
+                        verification_status=VerificationStatus.UNAVAILABLE,
+                        evidence_confidence="DATA_UNAVAILABLE",
+                        review_reason="External archive query could not be completed",
                         limitations="Internet Archive service was temporarily unavailable.",
                     )
                 )
@@ -112,7 +204,7 @@ class SellerHistoryService:
                     field_label="Facebook Page Transparency",
                     observed_value="NOT_PROVIDED",
                     source_type=SourceType.UNVERIFIED_INPUT,
-                    retrieval_date="",
+                    retrieval_date=now_iso,
                     evidence_text="No Page Transparency screenshot was uploaded for this seller",
                     verification_status=VerificationStatus.UNAVAILABLE,
                     evidence_confidence="UNVERIFIED_INPUT",
@@ -129,7 +221,7 @@ class SellerHistoryService:
                     field_label="E-Commerce Website Archive",
                     observed_value="NOT_PROVIDED",
                     source_type=SourceType.UNVERIFIED_INPUT,
-                    retrieval_date="",
+                    retrieval_date=now_iso,
                     evidence_text="No independent website URL was provided for archive research",
                     verification_status=VerificationStatus.UNAVAILABLE,
                     evidence_confidence="UNVERIFIED_INPUT",

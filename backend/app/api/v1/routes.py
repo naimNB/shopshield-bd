@@ -12,6 +12,10 @@ from backend.app.schemas.seller_history import (
     SellerHistoryReportRequest,
     SellerHistoryReportResponse,
 )
+from backend.app.schemas.temporal_comparison import (
+    CompareHistoryRequest,
+    CompareHistoryResponse,
+)
 from backend.app.services.analyzer import PurchasePromiseAnalyzer
 from backend.app.services.screenshot_extractor import (
     ScreenshotExtractorService,
@@ -28,6 +32,7 @@ from backend.app.services.wayback_service import (
 )
 from backend.app.services.ssrf_validator import SSRFValidationError
 from backend.app.services.seller_history_service import SellerHistoryService
+from backend.app.services.temporal_comparison_service import TemporalComparisonService
 from backend.app.services.ai_extractor import (
     ConfigurationError,
     AIProviderError,
@@ -80,7 +85,7 @@ async def get_status():
     ai_status_label = "configured (unverified)" if ai_configured else "unconfigured (missing GEMINI_API_KEY)"
     return {
         "project": settings.PROJECT_NAME,
-        "phase": "Task 06 — Seller History Intelligence & Multimodal Transparency",
+        "phase": "Task 09 — Historical Purchase Promise & Policy Change Detection",
         "event": "YUNet AIgnite Buildathon 2026",
         "ai_engine": {
             "model": settings.GEMINI_MODEL,
@@ -97,6 +102,7 @@ async def get_status():
             "facebook_page_transparency_analysis": "implemented",
             "website_wayback_history_research": "implemented",
             "seller_history_intelligence": "implemented",
+            "historical_policy_change_detection": "implemented",
         },
         "documentation": "/docs",
     }
@@ -478,5 +484,83 @@ async def generate_seller_history_report(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An internal server error occurred while generating the seller history report.",
         )
+
+
+@router.post(
+    "/seller-history/compare",
+    response_model=CompareHistoryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Compare Historical Purchase Promises & Policy Evolution",
+    description=(
+        "Discovers and compares historical web snapshots from the Internet Archive Wayback Machine "
+        "to detect factual policy, pricing, delivery, and return term changes over time. Classifies changes "
+        "as CHANGED, UNCHANGED, INSUFFICIENT_EVIDENCE, NOT_COMPARABLE, or NEEDS_REVIEW. Never asserts fraud "
+        "based on normal business adjustments."
+    ),
+    tags=["Seller History"],
+)
+async def compare_seller_history(
+    request: CompareHistoryRequest,
+) -> CompareHistoryResponse:
+    """Compare purchase promises across distinct historical snapshots of an e-commerce website."""
+    target_clean = request.website_url.strip()
+    if not target_clean:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Website URL is required.",
+        )
+    if len(target_clean) > settings.MAX_INPUT_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Website URL exceeds maximum limit of {settings.MAX_INPUT_TEXT_LENGTH} characters.",
+        )
+
+    service = TemporalComparisonService()
+
+    try:
+        result = await asyncio.to_thread(service.compare_history, request)
+        return result
+    except SSRFValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except WaybackRateLimitError:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Internet Archive rate limit reached. Please try again shortly.",
+        )
+    except WaybackTimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="The Internet Archive Wayback Machine request timed out.",
+        )
+    except WaybackPayloadTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Internet Archive response exceeded maximum safe limit.",
+        )
+    except (WaybackSourceUnavailableError, WaybackServiceError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(e),
+        )
+    except AIQuotaExhaustedError:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="AI quota or rate limit exceeded during claim extraction. Please try again later.",
+        )
+    except AITimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="AI claim extraction request timed out.",
+        )
+    except Exception as e:
+        logger.exception("Unexpected error during historical promise comparison: %s", type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal server error occurred while comparing historical website policies.",
+        )
+
 
 
