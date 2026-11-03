@@ -1,4 +1,5 @@
 import { ArrowRight, FileCheck, AlertTriangle, Lock, Eye, Sparkles } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export const Hero: React.FC = () => {
   return (
@@ -43,7 +44,7 @@ export const Hero: React.FC = () => {
             </a>
 
             <a
-              href="http://localhost:8000/docs"
+              href={`${API_BASE_URL}/docs`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-sm border border-slate-700 transition-colors"

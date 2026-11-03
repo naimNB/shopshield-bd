@@ -26,6 +26,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "https://shopshield-bd.vercel.app",
     ]
 
     # Multimodal AI Engine Configuration
@@ -37,12 +38,14 @@ class Settings(BaseSettings):
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
-        """Parse comma-separated strings or JSON string into list of origins."""
+        """Parse comma-separated strings or JSON string into list of clean origins."""
         if isinstance(v, str):
             v = v.strip()
             if v.startswith("[") and v.endswith("]"):
-                return json.loads(v)
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
+                return [origin.strip().rstrip("/") for origin in json.loads(v) if origin.strip()]
+            return [origin.strip().rstrip("/") for origin in v.split(",") if origin.strip()]
+        if isinstance(v, list):
+            return [origin.strip().rstrip("/") for origin in v if isinstance(origin, str) and origin.strip()]
         return v
 
     model_config = SettingsConfigDict(

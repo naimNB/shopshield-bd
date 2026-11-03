@@ -284,7 +284,8 @@ class AIExtractorService:
                         if attempt == 0:
                             time.sleep(2.0)
                             continue
-                        raise AIQuotaExhaustedError("Gemini API quota or rate limit exceeded. Please try again later.") from e
+                        # If rate limit hit on this model, break to attempt fallback model
+                        break
                     elif code in (408, 504):
                         raise AITimeoutError("Gemini API request timed out. Please try again.") from e
                     elif code in (401, 403):
@@ -308,6 +309,9 @@ class AIExtractorService:
 
         if not response or not response.text:
             if last_error:
+                code = getattr(last_error, "code", None)
+                if code == 429:
+                    raise AIQuotaExhaustedError("Gemini API quota or rate limit exceeded. Please try again later.") from last_error
                 raise AIProviderError("AI service provider returned an error.") from last_error
             raise AIResponseValidationError("AI provider returned an empty response.")
 

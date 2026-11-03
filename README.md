@@ -109,7 +109,8 @@ shopshield-bd/
 ├── docs/                      # Technical documentation
 │   ├── architecture.md        # Deep-dive architecture and data flow
 │   ├── api-specification.md   # Complete OpenAPI specification
-│   └── hackathon-vision.md    # Problem statement, DNCRP alignment, and roadmap
+│   ├── hackathon-vision.md    # Problem statement, DNCRP alignment, and roadmap
+│   └── vercel-deployment.md   # Production Vercel dashboard & deployment guide
 ├── tests/                     # Automated testing suite
 │   ├── conftest.py            # Pytest client fixtures
 │   ├── test_health.py         # System health & docs tests
@@ -129,7 +130,8 @@ shopshield-bd/
 |---|---|
 | **Frontend** | React 19, TypeScript 5, Vite 6, Tailwind CSS 3.4, Lucide React |
 | **Backend** | Python 3.12+, FastAPI, Pydantic v2, Uvicorn (ASGI) |
-| **AI / Multimodal** | Official `google-genai` Python SDK (`gemini-2.5-flash`) |
+| **AI / Multimodal** | Official `google-genai` Python SDK (`gemini-3.5-flash`) |
+| **Deployment** | Vercel (Frontend SPA + Python Serverless Function) |
 | **Testing** | Pytest, Starlette TestClient, ESLint 9, TypeScript compiler (`tsc`) |
 
 ---
@@ -161,7 +163,7 @@ cp .env.example .env
 Open `.env` and configure your Google Gemini API key:
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash
 ```
 *(Obtain a free key from [Google AI Studio](https://aistudio.google.com/)).*
 
@@ -208,6 +210,16 @@ npm run dev
 
 ---
 
+### 5. Production Deployment on Vercel
+
+ShopShield BD is configured for seamless deployment as two connected Vercel projects:
+- **`shopshield-bd` (Frontend):** Root Directory: `frontend`, Build: `npm run build`, Output: `dist`. Set `VITE_API_URL` to your backend URL.
+- **`shopshield-bd-api` (Backend):** Root Directory: `.`, Serverless entrypoint: `api/index.py`. Set `GEMINI_API_KEY`, `ALLOWED_ORIGINS`, etc.
+
+For exact dashboard settings, environment variables, and verification commands, see the [Vercel Deployment Guide](docs/vercel-deployment.md).
+
+---
+
 ## 🧪 Testing & Quality Assurance
 
 ### Run Backend Tests (Pytest)
@@ -216,7 +228,7 @@ npm run dev
 pytest -v tests/
 ```
 
-All 25 automated tests verify:
+All 29 automated tests verify:
 1. **Price contradiction:** Differing prices flagged as `CONTRADICTION` with high severity when supported by evidence.
 2. **COD contradiction:** Ad promising COD while chat denies it flagged as `CONTRADICTION`.
 3. **Return policy contradiction:** Offering returns in ad but denying in chat flagged as `CONTRADICTION`.
@@ -234,6 +246,7 @@ All 25 automated tests verify:
 15. **Evidence requirement for contradictions:** Price discrepancies without verified evidence quotes are downgraded to `NEEDS_REVIEW`.
 16. **Edge cases in quotation verification:** Null, empty, and whitespace strings rejected.
 17. **Health and OpenAPI specs:** Valid `/health`, `/status`, and `/openapi.json` endpoints.
+18. **Vercel Serverless Entrypoints:** Root `api/index.py` and `backend/api/index.py` routing integrity.
 
 ### Run Frontend Lint & Production Build
 ```bash

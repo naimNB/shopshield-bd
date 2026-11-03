@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, ShieldAlert, CheckCircle2, Info, Eye, Lock, ArrowRight } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export const VerificationPreview: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'promise' | 'payment' | 'courier'>('promise');
@@ -227,7 +228,7 @@ export const VerificationPreview: React.FC = () => {
               Next Step: Multimodal AI Parser (Task 02)
             </span>
             <a
-              href="http://localhost:8000/docs"
+              href={`${API_BASE_URL}/docs`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center space-x-1"

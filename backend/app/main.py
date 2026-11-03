@@ -21,9 +21,11 @@ app = FastAPI(
 )
 
 # Configure Cross-Origin Resource Sharing (CORS)
+# Supports configured explicit origins and preview deployments matching https://shopshield-bd-*.vercel.app
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https:\/\/shopshield-bd(-[a-zA-Z0-9_-]+)?\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

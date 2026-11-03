@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, ExternalLink, Activity, Sparkles } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
@@ -15,7 +16,7 @@ export const Navbar: React.FC = () => {
     // Check backend health
     const checkHealth = async () => {
       try {
-        const res = await fetch('http://localhost:8000/health', { method: 'GET' });
+        const res = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
         if (res.ok) {
           setBackendStatus('healthy');
         } else {
@@ -56,7 +57,7 @@ export const Navbar: React.FC = () => {
             <a href="#preview" className="hover:text-emerald-400 transition-colors">Preview</a>
             <a href="#architecture" className="hover:text-emerald-400 transition-colors">Architecture</a>
             <a
-              href="http://localhost:8000/docs"
+              href={`${API_BASE_URL}/docs`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center space-x-1 hover:text-emerald-400 transition-colors"
@@ -91,7 +92,7 @@ export const Navbar: React.FC = () => {
                       : 'text-slate-400'
                   }
                 >
-                  {backendStatus === 'healthy' ? 'Online' : backendStatus === 'checking' ? 'Connecting' : 'Standby (:8000)'}
+                  {backendStatus === 'healthy' ? 'Online' : backendStatus === 'checking' ? 'Connecting' : 'Offline'}
                 </span>
               </span>
             </div>
@@ -174,7 +175,7 @@ export const Navbar: React.FC = () => {
             Architecture
           </a>
           <a
-            href="http://localhost:8000/docs"
+            href={`${API_BASE_URL}/docs`}
             target="_blank"
             rel="noopener noreferrer"
             className="block text-slate-300 hover:text-emerald-400 py-1"

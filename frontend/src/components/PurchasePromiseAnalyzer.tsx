@@ -15,8 +15,7 @@ import {
   ArrowRight,
   ShieldAlert,
 } from 'lucide-react';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from '../config';
 
 interface SingleClaim {
   claim_type: string;

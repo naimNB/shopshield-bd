@@ -1,4 +1,5 @@
 import { ShieldCheck, ExternalLink, Heart } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
@@ -39,7 +40,7 @@ export const Footer: React.FC = () => {
             <ul className="space-y-2 text-xs">
               <li>
                 <a
-                  href="http://localhost:8000/docs"
+                  href={`${API_BASE_URL}/docs`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-emerald-400 flex items-center space-x-1"
@@ -50,7 +51,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <a
-                  href="http://localhost:8000/health"
+                  href={`${API_BASE_URL}/health`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-emerald-400 flex items-center space-x-1"
@@ -61,7 +62,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <a
-                  href="http://localhost:8000/redoc"
+                  href={`${API_BASE_URL}/redoc`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-emerald-400 flex items-center space-x-1"

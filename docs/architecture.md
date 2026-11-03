@@ -123,7 +123,7 @@ shopshield-bd/
 
 | Feature | Category | Implementation Status |
 |---|---|---|
-| **AI Claim Extraction** | Core | **Implemented** (google-genai SDK, Gemini 2.5 Flash) |
+| **AI Claim Extraction** | Core | **Implemented** (google-genai SDK, Gemini 3.5 Flash) |
 | **Evidence Validation** | Quality Assurance | **Implemented** (Substring quotation verification) |
 | **Contradiction Detection** | Analysis | **Implemented** (Deterministic comparison) |
 | **Payment Safety Rules** | Advisory | **Implemented** (Rules engine with buyer actions) |
