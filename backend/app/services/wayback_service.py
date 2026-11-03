@@ -28,7 +28,7 @@ from backend.app.services.ssrf_validator import (
 logger = logging.getLogger(__name__)
 
 WAYBACK_CDX_ENDPOINT = "https://web.archive.org/cdx/search/cdx"
-WAYBACK_REQUEST_TIMEOUT = 6.0  # seconds
+WAYBACK_REQUEST_TIMEOUT = 12.0  # seconds
 MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MB
 
 
