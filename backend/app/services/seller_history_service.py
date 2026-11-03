@@ -1,0 +1,153 @@
+"""Consolidated Seller History Intelligence service for ShopShield BD.
+
+Integrates verifiable signals across Facebook Page Transparency screenshots and
+Internet Archive Wayback Machine historical captures into an evidence-based report.
+Separates independently retrieved web evidence from user-provided unverified evidence.
+Never produces arbitrary fraud scores, scam percentages, or accusations.
+"""
+
+from typing import List, Optional
+import logging
+
+from backend.app.schemas.seller_history import (
+    EvidenceFinding,
+    PageTransparencyData,
+    SellerHistoryReportResponse,
+    SourceType,
+    VerificationStatus,
+)
+from backend.app.services.page_transparency_service import PageTransparencyService
+from backend.app.services.wayback_service import WaybackService
+
+logger = logging.getLogger(__name__)
+
+
+class SellerHistoryService:
+    """Service orchestrating multi-source seller history verification."""
+
+    def __init__(
+        self,
+        wayback_service: Optional[WaybackService] = None,
+        transparency_service: Optional[PageTransparencyService] = None,
+    ):
+        self.wayback_service = wayback_service or WaybackService()
+        self.transparency_service = transparency_service or PageTransparencyService()
+
+    def generate_report(
+        self,
+        transparency_data: Optional[PageTransparencyData] = None,
+        website_url: Optional[str] = None,
+    ) -> SellerHistoryReportResponse:
+        """Combine available seller evidence sources into a consolidated report."""
+        independently_retrieved: List[EvidenceFinding] = []
+        user_provided_screenshots: List[EvidenceFinding] = []
+        unverified_or_unavailable: List[EvidenceFinding] = []
+        buyer_questions: List[str] = []
+        summary_points: List[str] = []
+
+        # 1. Process Page Transparency Data if available
+        if transparency_data:
+            findings, questions = self.transparency_service.build_findings_and_questions(transparency_data)
+            for f in findings:
+                if f.verification_status == VerificationStatus.INDEPENDENTLY_RETRIEVED:
+                    independently_retrieved.append(f)
+                elif f.verification_status == VerificationStatus.USER_PROVIDED_UNVERIFIED:
+                    user_provided_screenshots.append(f)
+                else:
+                    unverified_or_unavailable.append(f)
+            buyer_questions.extend(questions)
+
+            # Generate factual summary point
+            if transparency_data.page_name:
+                summary_points.append(f"Facebook Page: {transparency_data.page_name}")
+            if transparency_data.page_creation_date:
+                summary_points.append(f"Reported Created: {transparency_data.page_creation_date}")
+            if transparency_data.name_changes_count > 0:
+                summary_points.append(f"Recorded Name Changes: {transparency_data.name_changes_count}")
+
+        # 2. Process Website Archive Data if URL provided
+        if website_url and website_url.strip():
+            try:
+                web_resp = self.wayback_service.fetch_website_history(website_url)
+                for f in web_resp.findings:
+                    if f.verification_status == VerificationStatus.INDEPENDENTLY_RETRIEVED:
+                        independently_retrieved.append(f)
+                    elif f.verification_status == VerificationStatus.USER_PROVIDED_UNVERIFIED:
+                        user_provided_screenshots.append(f)
+                    else:
+                        unverified_or_unavailable.append(f)
+                buyer_questions.extend(web_resp.buyer_questions)
+
+                if web_resp.website_data.archive_available and web_resp.website_data.earliest_snapshot:
+                    summary_points.append(
+                        f"Website First Archived: {web_resp.website_data.earliest_snapshot.formatted_date}"
+                    )
+                else:
+                    summary_points.append("Website: No historical archive snapshots found")
+            except Exception as e:
+                logger.warning("Could not fetch website history for '%s': %s", website_url, e)
+                unverified_or_unavailable.append(
+                    EvidenceFinding(
+                        field_name="website_archive_presence",
+                        field_label="Website Archive Presence",
+                        observed_value="LOOKUP_FAILED",
+                        source_type=SourceType.INTERNET_ARCHIVE_CDX,
+                        retrieval_date="",
+                        evidence_text=f"Failed to query archive: {str(e)}",
+                        verification_status=VerificationStatus.UNAVAILABLE,
+                        limitations="Website archive could not be verified at this time.",
+                    )
+                )
+
+        # 3. Add standard unverified markers if not provided
+        if not transparency_data:
+            unverified_or_unavailable.append(
+                EvidenceFinding(
+                    field_name="page_transparency",
+                    field_label="Facebook Page Transparency",
+                    observed_value="NOT_PROVIDED",
+                    source_type=SourceType.UNVERIFIED_INPUT,
+                    retrieval_date="",
+                    evidence_text="No Page Transparency screenshot was uploaded for this seller",
+                    verification_status=VerificationStatus.UNAVAILABLE,
+                    limitations="Upload a screenshot of the Page Transparency card to analyze historical page records.",
+                )
+            )
+
+        if not website_url:
+            unverified_or_unavailable.append(
+                EvidenceFinding(
+                    field_name="website_archive",
+                    field_label="E-Commerce Website Archive",
+                    observed_value="NOT_PROVIDED",
+                    source_type=SourceType.UNVERIFIED_INPUT,
+                    retrieval_date="",
+                    evidence_text="No independent website URL was provided for archive research",
+                    verification_status=VerificationStatus.UNAVAILABLE,
+                    limitations="Provide an e-commerce website domain to check Internet Archive Wayback history.",
+                )
+            )
+
+        # Deduplicate buyer questions preserving order
+        seen_q = set()
+        deduped_questions: List[str] = []
+        for q in buyer_questions:
+            clean_q = q.strip()
+            if clean_q and clean_q not in seen_q:
+                seen_q.add(clean_q)
+                deduped_questions.append(clean_q)
+
+        # Build overall objective summary
+        if summary_points:
+            overall_summary = "Factual observations: " + "; ".join(summary_points) + "."
+        else:
+            overall_summary = "No verified seller history records provided. Submit a Page Transparency screenshot or website URL."
+
+        return SellerHistoryReportResponse(
+            status="success",
+            independently_retrieved=independently_retrieved,
+            user_provided_screenshots=user_provided_screenshots,
+            unverified_or_unavailable=unverified_or_unavailable,
+            buyer_verification_questions=deduped_questions,
+            overall_summary=overall_summary,
+        )

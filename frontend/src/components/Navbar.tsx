@@ -52,6 +52,7 @@ export const Navbar: React.FC = () => {
           {/* Nav Links */}
           <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300">
             <a href="#analyzer" className="text-emerald-400 font-semibold hover:text-emerald-300 transition-colors">Analyzer</a>
+            <a href="#seller-history" className="hover:text-emerald-400 transition-colors">Seller History</a>
             <a href="#problem-solution" className="hover:text-emerald-400 transition-colors">Why ShopShield</a>
             <a href="#features" className="hover:text-emerald-400 transition-colors">Features</a>
             <a href="#preview" className="hover:text-emerald-400 transition-colors">Preview</a>
@@ -145,6 +146,13 @@ export const Navbar: React.FC = () => {
             className="block text-emerald-400 font-semibold py-1"
           >
             AI Analyzer
+          </a>
+          <a
+            href="#seller-history"
+            onClick={() => setIsMenuOpen(false)}
+            className="block text-slate-300 hover:text-emerald-400 py-1"
+          >
+            Seller History
           </a>
           <a
             href="#problem-solution"

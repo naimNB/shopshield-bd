@@ -1,0 +1,444 @@
+"""Comprehensive automated tests for Seller History Intelligence in ShopShield BD.
+
+Tests cover:
+- Valid Facebook Page Transparency screenshot extraction
+- Missing creation date handling
+- Multiple Page name changes
+- Rejection of unsupported or hallucinated AI claims (evidence grounding)
+- Valid archived website with Wayback CDX API
+- No archive snapshots handling
+- Archive API failures and rate limits
+- SSRF protection against malicious URLs, private IPs, loopback, and metadata services
+- Evidence provenance categorization (independent web vs user screenshot vs unverified)
+- Disclaimers on date interpretations (no false claims of domain founding date)
+- Real authorized live Wayback CDX query test
+- Real authorized Gemini multimodal screenshot extraction test (when configured)
+"""
+
+import io
+from unittest.mock import MagicMock, patch
+import pytest
+from fastapi.testclient import TestClient
+from PIL import Image, ImageDraw
+
+from backend.app.main import app
+from backend.app.schemas.seller_history import (
+    PageNameChange,
+    PageTransparencyData,
+    SourceType,
+    VerificationStatus,
+    WebsiteHistoryRequest,
+    SellerHistoryReportRequest,
+)
+from backend.app.services.page_transparency_service import (
+    PageTransparencyService,
+    calculate_page_age_months,
+)
+from backend.app.services.ssrf_validator import (
+    validate_and_sanitize_url,
+    SSRFValidationError,
+)
+from backend.app.services.wayback_service import (
+    WaybackService,
+    WaybackTimeoutError,
+    WaybackRateLimitError,
+)
+from backend.app.services.seller_history_service import SellerHistoryService
+from backend.app.config import settings
+
+client = TestClient(app)
+
+
+def create_synthetic_page_transparency_image(
+    page_name: str = "Dhaka Gadget Store",
+    creation_date: str = "14 October 2024",
+    name_changes: list = None,
+    manager_country: str = "Bangladesh (2), Nigeria (1)",
+    is_running_ads: bool = True,
+) -> bytes:
+    """Generate a clean synthetic PNG image mimicking a Facebook Page Transparency card."""
+    if name_changes is None:
+        name_changes = [
+            ("Dhaka Gadget Store", "October 14, 2024"),
+            ("Viral Clips BD", "May 12, 2023"),
+        ]
+
+    img = Image.new("RGB", (700, 900), color=(245, 247, 250))
+    draw = ImageDraw.Draw(img)
+
+    y = 30
+    draw.text((40, y), "Page Transparency", fill=(15, 23, 42))
+    y += 40
+    draw.text((40, y), f"Page Name: {page_name}", fill=(30, 41, 59))
+    y += 50
+    draw.text((40, y), f"Page created - {creation_date}", fill=(51, 65, 85))
+    y += 50
+    draw.text((40, y), f"Changed name {len(name_changes)} times:", fill=(51, 65, 85))
+    y += 35
+    for prev_name, change_date in name_changes:
+        draw.text((60, y), f"- {prev_name} ({change_date})", fill=(71, 85, 105))
+        y += 35
+    y += 25
+    draw.text((40, y), f"Primary country/region location: {manager_country}", fill=(51, 65, 85))
+    y += 50
+    ads_text = "This Page is currently running ads" if is_running_ads else "This Page is not currently running ads"
+    draw.text((40, y), ads_text, fill=(51, 65, 85))
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+# ============================================================================
+# 1. SSRF & MALICIOUS URL PROTECTION TESTS
+# ============================================================================
+
+def test_ssrf_rejects_localhost_and_loopback():
+    """Verify that localhost and loopback IPv4/IPv6 addresses are rejected."""
+    with pytest.raises(SSRFValidationError, match="Access to restricted hostname"):
+        validate_and_sanitize_url("http://localhost:8000/admin")
+
+    with pytest.raises(SSRFValidationError, match="restricted/internal IP"):
+        validate_and_sanitize_url("http://127.0.0.1/status")
+
+
+def test_ssrf_rejects_cloud_metadata_services():
+    """Verify that cloud metadata IPs (AWS/GCP 169.254.169.254) are rejected."""
+    with pytest.raises(SSRFValidationError, match="restricted hostname|restricted/internal IP|cloud metadata"):
+        validate_and_sanitize_url("http://169.254.169.254/latest/meta-data/")
+
+    with pytest.raises(SSRFValidationError, match="Access to restricted hostname"):
+        validate_and_sanitize_url("http://metadata.google.internal/computeMetadata/v1/")
+
+
+def test_ssrf_rejects_private_rfc1918_addresses():
+    """Verify that RFC 1918 private subnets (10.x, 192.168.x, 172.16.x) are blocked."""
+    with pytest.raises(SSRFValidationError, match="restricted/internal IP"):
+        validate_and_sanitize_url("http://10.0.0.1/internal")
+
+    with pytest.raises(SSRFValidationError, match="restricted/internal IP"):
+        validate_and_sanitize_url("http://192.168.1.1/router")
+
+    with pytest.raises(SSRFValidationError, match="restricted/internal IP"):
+        validate_and_sanitize_url("http://172.16.0.5/api")
+
+
+def test_ssrf_rejects_unsupported_schemes_and_credentials():
+    """Verify that non-HTTP(S) schemes and embedded credentials are prohibited."""
+    with pytest.raises(SSRFValidationError, match="Unsupported URL scheme"):
+        validate_and_sanitize_url("ftp://example.com/files")
+
+    with pytest.raises(SSRFValidationError, match="Unsupported URL scheme"):
+        validate_and_sanitize_url("file:///etc/passwd")
+
+    with pytest.raises(SSRFValidationError, match="embedded user credentials"):
+        validate_and_sanitize_url("http://admin:secret123@example.com")
+
+
+def test_ssrf_accepts_legitimate_public_url():
+    """Verify that a valid public URL resolves and normalizes cleanly."""
+    normalized, domain = validate_and_sanitize_url("https://daraz.com.bd/products")
+    assert "daraz.com.bd" in domain
+    assert normalized.startswith("https://")
+
+
+# ============================================================================
+# 2. WEBSITE WAYBACK HISTORICAL RESEARCH TESTS
+# ============================================================================
+
+def test_wayback_service_with_valid_archive():
+    """Test Wayback service with a simulated multi-snapshot archive response."""
+    mock_cdx_rows = [
+        ["timestamp", "original", "statuscode"],
+        ["20150110205606", "http://www.daraz.com.bd:80/", "200"],
+        ["20180102114753", "https://www.daraz.com.bd/", "200"],
+        ["20240101112511", "https://www.daraz.com.bd/", "200"],
+    ]
+
+    service = WaybackService()
+    with patch.object(service, "query_cdx_api", return_value=mock_cdx_rows):
+        resp = service.fetch_website_history("https://daraz.com.bd")
+
+        assert resp.status == "success"
+        assert resp.website_data.archive_available is True
+        assert resp.website_data.total_snapshots_observed == 3
+        assert resp.website_data.earliest_snapshot.formatted_date == "2015-01-10"
+        assert resp.website_data.latest_snapshot.formatted_date == "2024-01-01"
+        assert "web.archive.org/web/20150110205606" in resp.website_data.earliest_snapshot.snapshot_url
+
+        # Check evidence findings provenance
+        assert len(resp.findings) >= 2
+        earliest_finding = next(f for f in resp.findings if f.field_name == "earliest_archive_capture")
+        assert earliest_finding.source_type == SourceType.INTERNET_ARCHIVE_CDX
+        assert earliest_finding.verification_status == VerificationStatus.INDEPENDENTLY_RETRIEVED
+
+        # Ensure limitations explicitly state this is NOT domain founding date
+        assert "NOT proof of domain registration date" in earliest_finding.limitations
+        assert len(resp.buyer_questions) > 0
+
+
+def test_wayback_service_zero_snapshots():
+    """Test Wayback service when domain has zero captures in Internet Archive."""
+    service = WaybackService()
+    with patch.object(service, "query_cdx_api", return_value=[]):
+        resp = service.fetch_website_history("https://brandnewstore12345.com.bd")
+
+        assert resp.status == "success"
+        assert resp.website_data.archive_available is False
+        assert resp.website_data.total_snapshots_observed == 0
+        assert resp.website_data.earliest_snapshot is None
+
+        presence_finding = next(f for f in resp.findings if f.field_name == "archive_presence")
+        assert presence_finding.verification_status == VerificationStatus.UNAVAILABLE
+        assert "NOT automatically prove a business is fraudulent" in presence_finding.limitations
+
+
+def test_wayback_endpoint_api_errors():
+    """Test HTTP API handling when Wayback API times out or hits rate limits."""
+    # Test rate limit (429)
+    with patch.object(WaybackService, "query_cdx_api", side_effect=WaybackRateLimitError):
+        r = client.post("/api/v1/seller-history/website", json={"url": "https://example.com"})
+        assert r.status_code == 429
+        assert "rate limit" in r.json()["detail"].lower()
+
+    # Test timeout (504)
+    with patch.object(WaybackService, "query_cdx_api", side_effect=WaybackTimeoutError):
+        r = client.post("/api/v1/seller-history/website", json={"url": "https://example.com"})
+        assert r.status_code == 504
+        assert "timed out" in r.json()["detail"].lower()
+
+
+def test_wayback_endpoint_malicious_url_422():
+    """Test that POST /api/v1/seller-history/website rejects malicious URLs with 422."""
+    r = client.post("/api/v1/seller-history/website", json={"url": "http://127.0.0.1:8000/api"})
+    assert r.status_code == 422
+    assert "restricted" in r.json()["detail"].lower()
+
+
+# ============================================================================
+# 3. PAGE TRANSPARENCY & EVIDENCE VALIDATION TESTS
+# ============================================================================
+
+def test_calculate_page_age_months():
+    """Test age calculation from various human date strings."""
+    assert calculate_page_age_months(None) is None
+    assert calculate_page_age_months("No date visible") is None
+
+    # Test with known historical year
+    age = calculate_page_age_months("14 October 2024")
+    assert age is not None
+    assert age >= 0
+
+
+def test_page_transparency_evidence_validation_rejects_hallucinations():
+    """Verify that claims hallucinated by AI that do not appear in raw text are discarded."""
+    service = PageTransparencyService()
+
+    raw_text = "Page Transparency\nPage Name: Trusted BD\nPage created - 10 May 2024"
+    data = PageTransparencyData(
+        page_name="Trusted BD",
+        page_creation_date="10 May 2024",
+        # Hallucinated date and name change not in raw_text:
+        name_changes=[
+            PageNameChange(previous_name="Scam Page 123", change_date="2023"),
+        ],
+        raw_extracted_text=raw_text,
+    )
+
+    validated = service.validate_transparency_evidence(data)
+
+    # Hallucinated name change must be stripped
+    assert validated.name_changes_count == 0
+    assert len(validated.name_changes) == 0
+    # Supported creation date must remain
+    assert validated.page_creation_date == "10 May 2024"
+    assert validated.page_name == "Trusted BD"
+
+
+def test_page_transparency_missing_creation_date():
+    """Verify handling when creation date is missing or unreadable in the screenshot."""
+    service = PageTransparencyService()
+    raw_text = "Page Transparency\nPage Name: Fashion Hub BD\nPrimary country: Bangladesh"
+    data = PageTransparencyData(
+        page_name="Fashion Hub BD",
+        page_creation_date=None,
+        raw_extracted_text=raw_text,
+    )
+
+    validated = service.validate_transparency_evidence(data)
+    assert validated.page_creation_date is None
+    assert "page_creation_date" in validated.unreadable_or_missing_fields
+
+    findings, questions = service.build_findings_and_questions(validated)
+    date_finding = next(f for f in findings if f.field_name == "page_creation_date")
+    assert date_finding.verification_status == VerificationStatus.UNAVAILABLE
+    assert date_finding.observed_value == "NOT_VISIBLE_IN_SCREENSHOT"
+
+
+def test_page_transparency_multiple_name_changes_as_factual_record():
+    """Verify that multiple name changes are treated as factual records, not fraud accusations."""
+    service = PageTransparencyService()
+    raw_text = (
+        "Page Transparency\nPage Name: Gadget Mart\nPage created - 2020\n"
+        "Changed name 2 times: 'Viral Videos BD', 'Tech Hub BD'"
+    )
+    data = PageTransparencyData(
+        page_name="Gadget Mart",
+        page_creation_date="2020",
+        name_changes=[
+            PageNameChange(previous_name="Viral Videos BD", change_date="2021"),
+            PageNameChange(previous_name="Tech Hub BD", change_date="2023"),
+        ],
+        raw_extracted_text=raw_text,
+    )
+
+    validated = service.validate_transparency_evidence(data)
+    assert validated.name_changes_count == 2
+
+    findings, questions = service.build_findings_and_questions(validated)
+    name_finding = next(f for f in findings if f.field_name == "page_name_changes")
+
+    assert name_finding.source_type == SourceType.USER_SCREENSHOT
+    assert name_finding.verification_status == VerificationStatus.USER_PROVIDED_UNVERIFIED
+    # Ensure limitations emphasize legitimate rebranding, not fraud accusations
+    assert "legitimately rebrand" in name_finding.limitations
+    assert "does not constitute proof of fraud" in name_finding.limitations
+
+
+def test_page_transparency_endpoint_with_mocked_gemini():
+    """Test the full /api/v1/seller-history/page-transparency endpoint with a synthetic image."""
+    img_bytes = create_synthetic_page_transparency_image()
+
+    mock_resp_text = (
+        '{"page_name": "Dhaka Gadget Store", '
+        '"page_creation_date": "14 October 2024", '
+        '"name_changes_count": 2, '
+        '"name_changes": [{"previous_name": "Viral Clips BD", "change_date": "May 12, 2023", "evidence_text": "Viral Clips BD"}], '
+        '"merge_history": null, '
+        '"manager_locations": [{"country": "Bangladesh", "count": 2}, {"country": "Nigeria", "count": 1}], '
+        '"is_running_ads": true, '
+        '"unreadable_or_missing_fields": [], '
+        '"raw_extracted_text": "Page Transparency\\nPage Name: Dhaka Gadget Store\\nPage created - 14 October 2024\\nChanged name 2 times:\\n- Viral Clips BD (May 12, 2023)\\nPrimary country/region location: Bangladesh (2), Nigeria (1)\\nThis Page is currently running ads"}'
+    )
+
+    mock_model_response = MagicMock()
+    mock_model_response.text = mock_resp_text
+
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = mock_model_response
+
+    with patch.object(PageTransparencyService, "client", new_callable=lambda: mock_client):
+        response = client.post(
+            "/api/v1/seller-history/page-transparency",
+            files={"file": ("transparency.png", img_bytes, "image/png")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["transparency_data"]["page_name"] == "Dhaka Gadget Store"
+        assert data["transparency_data"]["page_creation_date"] == "14 October 2024"
+        assert len(data["findings"]) >= 3
+
+        # Check disclaimer requirement
+        assert "not independently verified against Meta/Facebook servers" in data["disclaimer"]
+
+
+# ============================================================================
+# 4. CONSOLIDATED SELLER HISTORY REPORT TESTS
+# ============================================================================
+
+def test_consolidated_seller_history_report():
+    """Test combining Page Transparency and Website archive data into a consolidated report."""
+    transparency_data = PageTransparencyData(
+        page_name="Gadget Lab BD",
+        page_creation_date="2024-01-15",
+        name_changes_count=1,
+        name_changes=[PageNameChange(previous_name="Phone Mart BD", change_date="2024-05")],
+        raw_extracted_text="Gadget Lab BD 2024-01-15 Phone Mart BD",
+    )
+
+    mock_cdx_rows = [
+        ["timestamp", "original", "statuscode"],
+        ["20240201120000", "https://gadgetlab.com.bd/", "200"],
+    ]
+
+    wayback_service = WaybackService()
+    transparency_service = PageTransparencyService()
+    report_service = SellerHistoryService(
+        wayback_service=wayback_service,
+        transparency_service=transparency_service,
+    )
+
+    with patch.object(wayback_service, "query_cdx_api", return_value=mock_cdx_rows):
+        report = report_service.generate_report(
+            transparency_data=transparency_data,
+            website_url="https://gadgetlab.com.bd",
+        )
+
+        assert report.status == "success"
+        # Findings must be cleanly separated
+        assert len(report.independently_retrieved) >= 1
+        assert len(report.user_provided_screenshots) >= 1
+        assert any(f.source_type == SourceType.INTERNET_ARCHIVE_CDX for f in report.independently_retrieved)
+        assert any(f.source_type == SourceType.USER_SCREENSHOT for f in report.user_provided_screenshots)
+
+        # Ensure no fake scores or scam probabilities exist
+        report_json = report.model_dump_json()
+        assert "trust_score" not in report_json
+        assert "scam_probability" not in report_json
+        assert "fraud_score" not in report_json
+
+
+# ============================================================================
+# 5. REAL AUTHORIZED LIVE CALL TESTS
+# ============================================================================
+
+def test_live_authorized_wayback_cdx_call():
+    """Perform a live, authorized read-only query against the Internet Archive CDX API.
+
+    Verifies real-world connectivity and parsing of public archive data.
+    """
+    service = WaybackService()
+    try:
+        # Use an established, public Bangladesh domain
+        resp = service.fetch_website_history("https://daraz.com.bd")
+        assert resp.status == "success"
+        assert resp.website_data.archive_available is True
+        assert resp.website_data.total_snapshots_observed > 0
+        assert resp.website_data.earliest_snapshot is not None
+        # Verify that earliest snapshot year is between 2012 and 2018
+        earliest_year = int(resp.website_data.earliest_snapshot.formatted_date[:4])
+        assert 2010 <= earliest_year <= 2018
+    except (WaybackTimeoutError, WaybackRateLimitError):
+        pytest.skip("Internet Archive Wayback Machine API is currently rate-limited or timed out.")
+
+
+@pytest.mark.skipif(
+    not settings.GEMINI_API_KEY,
+    reason="Requires active GEMINI_API_KEY for live multimodal OCR verification",
+)
+def test_live_gemini_page_transparency_extraction():
+    """Perform a real, live Gemini multimodal extraction on a synthetic Page Transparency screenshot."""
+    img_bytes = create_synthetic_page_transparency_image(
+        page_name="ShopShield BD Verified Store",
+        creation_date="15 January 2024",
+        name_changes=[("Old Store BD", "2023")],
+        manager_country="Bangladesh (2)",
+        is_running_ads=False,
+    )
+
+    service = PageTransparencyService()
+    try:
+        result = service.extract_page_transparency(img_bytes, declared_content_type="image/png")
+        assert result.status == "success"
+        assert result.transparency_data is not None
+        # Model should extract the visible page name or date from the clean synthetic image
+        assert len(result.transparency_data.raw_extracted_text) > 0
+        assert len(result.findings) > 0
+        assert len(result.buyer_questions) > 0
+    except Exception as e:
+        # Log exception details if live call hits transient quota
+        if "quota" in str(e).lower() or "429" in str(e):
+            pytest.skip("Live Gemini API quota reached during multimodal OCR test.")
+        raise
