@@ -1,9 +1,10 @@
 """Internet Archive Wayback Machine historical research service for ShopShield BD.
 
 Fetches verifiable public historical metadata via the official Wayback CDX API.
-Enforces strict SSRF protection, timeouts, and payload limits.
+Enforces strict SSRF protection, timeouts, and bounded streaming payload limits.
 Accurately queries independent earliest and latest captures using documented CDX sorting.
 Maintains clear separation between historical sample captures and total capture volume.
+Replaces misleading 'COMPLETE' status with precise 'DATE_RANGE_VERIFIED' / 'PARTIAL_COVERAGE'.
 Adheres strictly to the rule that an archive capture is NOT proof of domain registration
 or company founding dates.
 """
@@ -11,9 +12,19 @@ or company founding dates.
 from datetime import datetime, date, timezone
 import json
 import logging
-from typing import List, Optional, Tuple
+import re
+from typing import List, Optional, Tuple, Iterator
+from contextlib import contextmanager
+import uuid
 import httpx
 
+from backend.app.core.errors import (
+    WaybackServiceError,
+    WaybackTimeoutError,
+    WaybackRateLimitError,
+    WaybackSourceUnavailableError,
+    WaybackPayloadTooLargeError,
+)
 from backend.app.schemas.seller_history import (
     EvidenceFinding,
     SourceType,
@@ -29,30 +40,27 @@ from backend.app.services.ssrf_validator import (
 
 logger = logging.getLogger(__name__)
 
+# Re-export for module consumers
+__all__ = [
+    "WaybackService",
+    "WaybackServiceError",
+    "WaybackTimeoutError",
+    "WaybackRateLimitError",
+    "WaybackSourceUnavailableError",
+    "WaybackPayloadTooLargeError",
+    "validate_and_format_timestamp",
+    "make_snapshot_url",
+]
+
 WAYBACK_CDX_ENDPOINT = "https://web.archive.org/cdx/search/cdx"
 WAYBACK_REQUEST_TIMEOUT = 12.0  # seconds
-MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MB
-
-
-class WaybackServiceError(Exception):
-    """Base exception for Wayback Machine API errors."""
-    pass
-
-
-class WaybackTimeoutError(WaybackServiceError):
-    """Raised when the Wayback Machine API times out."""
-    pass
-
-
-class WaybackRateLimitError(WaybackServiceError):
-    """Raised when the Wayback Machine API returns 429 Too Many Requests."""
-    pass
+MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MB streaming cutoff
 
 
 def validate_and_format_timestamp(ts: str) -> Tuple[bool, Optional[str], Optional[str]]:
     """Validate 14-digit Wayback timestamp (YYYYMMDDhhmmss) and return (is_valid, formatted_date, year).
 
-    Ensures the timestamp is composed of digits, has valid date bounds, and is not in the future.
+    Ensures the timestamp is composed of digits, has valid calendar bounds, and is not in the future.
     """
     if not ts or not ts.isdigit() or len(ts) < 8:
         return False, None, None
@@ -91,8 +99,10 @@ def validate_and_format_timestamp(ts: str) -> Tuple[bool, Optional[str], Optiona
 
 
 def make_snapshot_url(timestamp: str, original_url: str) -> str:
-    """Generate safe, direct public Internet Archive snapshot URL."""
-    return f"https://web.archive.org/web/{timestamp}/{original_url}"
+    """Generate safe, direct public Internet Archive snapshot URL with sanitization."""
+    safe_ts = re.sub(r"[^0-9]", "", timestamp)
+    safe_url = re.sub(r"[\r\n\t]", "", original_url)
+    return f"https://web.archive.org/web/{safe_ts}/{safe_url}"
 
 
 class WaybackService:
@@ -101,57 +111,84 @@ class WaybackService:
     def __init__(self, client: Optional[httpx.Client] = None):
         self._client = client
 
-    def get_client(self) -> httpx.Client:
+    @contextmanager
+    def _client_context(self) -> Iterator[httpx.Client]:
+        """Yield a managed HTTP client, ensuring socket and connection pool cleanup."""
         if self._client is not None:
-            return self._client
-        return httpx.Client(
-            timeout=WAYBACK_REQUEST_TIMEOUT,
-            headers={
-                "User-Agent": "ShopShieldBD/1.0 (Digital Commerce Safety Research; https://shopshield-bd.vercel.app)",
-                "Accept": "application/json",
-            },
-            follow_redirects=False,
-        )
+            yield self._client
+        else:
+            with httpx.Client(
+                timeout=WAYBACK_REQUEST_TIMEOUT,
+                headers={
+                    "User-Agent": "ShopShieldBD/1.0 (Digital Commerce Safety Research; https://shopshield-bd.vercel.app)",
+                    "Accept": "application/json",
+                },
+                follow_redirects=False,
+            ) as client:
+                yield client
 
     def query_cdx_raw(self, params: dict) -> List[List[str]]:
-        """Execute a single query against Wayback CDX API.
+        """Execute a single streaming query against Wayback CDX API.
 
-        Returns list of rows, where row 0 is header ['timestamp', 'original', 'statuscode'].
+        Enforces bounded memory reading up to MAX_RESPONSE_BYTES and handles error status codes
+        without falsely disguising API failures as empty archive records.
         """
-        client = self.get_client()
         try:
-            response = client.get(
-                WAYBACK_CDX_ENDPOINT,
-                params=params,
-            )
+            with self._client_context() as client:
+                with client.stream("GET", WAYBACK_CDX_ENDPOINT, params=params) as response:
+                    if response.status_code == 429:
+                        logger.warning("Wayback CDX API rate limit reached (HTTP 429).")
+                        raise WaybackRateLimitError("Internet Archive rate limit reached. Please try again shortly.")
+
+                    if response.status_code in (408, 504):
+                        logger.warning("Wayback CDX API gateway timeout (HTTP %d).", response.status_code)
+                        raise WaybackTimeoutError("Internet Archive Wayback Machine API timed out.")
+
+                    if response.status_code >= 500:
+                        logger.warning("Wayback CDX API returned server error (HTTP %d).", response.status_code)
+                        raise WaybackSourceUnavailableError(
+                            f"Internet Archive CDX server error (HTTP {response.status_code}). Service temporarily unavailable."
+                        )
+
+                    if response.status_code != 200:
+                        logger.info("Wayback CDX API returned status %d for query %s", response.status_code, params.get("url"))
+                        raise WaybackSourceUnavailableError(
+                            f"Internet Archive CDX returned unexpected HTTP {response.status_code}."
+                        )
+
+                    chunks: List[bytes] = []
+                    total_bytes = 0
+                    for chunk in response.iter_bytes(chunk_size=8192):
+                        total_bytes += len(chunk)
+                        if total_bytes > MAX_RESPONSE_BYTES:
+                            logger.warning("Wayback CDX response exceeded maximum size limit of %d bytes.", MAX_RESPONSE_BYTES)
+                            raise WaybackPayloadTooLargeError(
+                                f"Internet Archive response exceeded maximum allowable size of {MAX_RESPONSE_BYTES // 1024} KB."
+                            )
+                        chunks.append(chunk)
+
+                    raw_content = b"".join(chunks)
+
+        except (WaybackTimeoutError, WaybackRateLimitError, WaybackSourceUnavailableError, WaybackPayloadTooLargeError):
+            raise
         except httpx.TimeoutException as e:
             logger.warning("Wayback CDX API timed out for params %s", params)
             raise WaybackTimeoutError("Internet Archive Wayback Machine API timed out.") from e
         except httpx.RequestError as e:
             logger.warning("Network error contacting Wayback CDX API: %s", type(e).__name__)
-            raise WaybackServiceError("Could not connect to Internet Archive.") from e
-
-        if response.status_code == 429:
-            logger.warning("Wayback CDX API rate limit reached (HTTP 429).")
-            raise WaybackRateLimitError("Internet Archive rate limit reached. Please try again shortly.")
-
-        if response.status_code != 200:
-            logger.info("Wayback CDX API returned status %d for query %s", response.status_code, params.get("url"))
-            return []
-
-        content = response.content
-        if len(content) > MAX_RESPONSE_BYTES:
-            logger.warning("Wayback CDX response exceeded 1 MB limit.")
-            content = content[:MAX_RESPONSE_BYTES]
+            raise WaybackSourceUnavailableError("Could not connect to Internet Archive.") from e
 
         try:
-            data = json.loads(content.decode("utf-8", errors="replace"))
+            decoded_text = raw_content.decode("utf-8")
+            if not decoded_text.strip():
+                return []
+            data = json.loads(decoded_text)
             if isinstance(data, list):
                 return data
-            return []
-        except Exception as e:
+            raise WaybackSourceUnavailableError("Wayback CDX API returned non-list JSON structure.")
+        except json.JSONDecodeError as e:
             logger.error("Failed to parse Wayback CDX JSON: %s", e)
-            return []
+            raise WaybackSourceUnavailableError("Internet Archive returned malformed or unparseable JSON.") from e
 
     def get_single_snapshot(self, domain: str, sort_reverse: bool = False) -> Optional[WebsiteArchiveSnapshot]:
         """Query for a single capture (earliest if sort_reverse=False, latest if sort_reverse=True)."""
@@ -184,7 +221,6 @@ class WaybackService:
 
     def get_sample_snapshots(self, domain: str, max_samples: int = 15) -> List[WebsiteArchiveSnapshot]:
         """Query for distributed sample snapshots across the domain's historical presence."""
-        # First try yearly collapse
         params = {
             "url": domain,
             "output": "json",
@@ -220,7 +256,7 @@ class WaybackService:
         return snapshots
 
     def fetch_website_history(self, raw_url: str) -> WebsiteHistoryResponse:
-        """Analyze historical website archive coverage safely and accurately.
+        """Analyze historical website archive coverage safely, accurately, and without false claims.
 
         Queries independent earliest and latest captures using documented CDX API sorting,
         ensuring that result limits do not truncate or distort the newest observed date.
@@ -228,34 +264,21 @@ class WaybackService:
         normalized_url, clean_hostname = validate_and_sanitize_url(raw_url)
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        earliest: Optional[WebsiteArchiveSnapshot] = None
-        latest: Optional[WebsiteArchiveSnapshot] = None
-        samples: List[WebsiteArchiveSnapshot] = []
-        coverage_status = "SAMPLED"
+        # Execute queries; let genuine provider exceptions propagate
+        earliest = self.get_single_snapshot(clean_hostname, sort_reverse=False)
+        latest = self.get_single_snapshot(clean_hostname, sort_reverse=True)
+        samples = self.get_sample_snapshots(clean_hostname, max_samples=15)
 
-        try:
-            # 1. Independent earliest capture query (ascending order, limit=1)
-            earliest = self.get_single_snapshot(clean_hostname, sort_reverse=False)
-
-            # 2. Independent latest capture query (reverse sort order, limit=1)
-            latest = self.get_single_snapshot(clean_hostname, sort_reverse=True)
-
-            # 3. Distributed historical sample captures
-            samples = self.get_sample_snapshots(clean_hostname, max_samples=15)
-        except (WaybackTimeoutError, WaybackRateLimitError):
-            raise
-        except Exception as e:
-            logger.warning("Error fetching website archive parts: %s", e)
-
-        # Determine archive availability and coverage status
+        # Determine archive availability and honest coverage status
         archive_available = earliest is not None or latest is not None or len(samples) > 0
 
         if not archive_available:
             coverage_status = "NO_ARCHIVES"
         elif earliest is not None and latest is not None:
-            coverage_status = "COMPLETE"
+            # Replaced misleading "COMPLETE" with precise "DATE_RANGE_VERIFIED"
+            coverage_status = "DATE_RANGE_VERIFIED"
         else:
-            coverage_status = "SAMPLED"
+            coverage_status = "PARTIAL_COVERAGE"
 
         sample_count = len(samples)
         total_captures_estimate: Optional[str] = None
@@ -276,7 +299,7 @@ class WaybackService:
             latest_snapshot=latest,
             sample_snapshots_count=sample_count,
             sample_snapshots=samples,
-            total_snapshots_observed=sample_count,  # Maintain legacy alias compatibility
+            total_snapshots_observed=sample_count,  # Legacy alias compatibility
             total_captures_estimate=total_captures_estimate,
         )
 
@@ -286,6 +309,7 @@ class WaybackService:
         if archive_available and earliest:
             findings.append(
                 EvidenceFinding(
+                    finding_id=f"wb_earliest_{uuid.uuid4().hex[:6]}",
                     field_name="earliest_archive_capture",
                     field_label="Earliest Recorded Archive Capture",
                     observed_value=earliest.formatted_date,
@@ -295,6 +319,7 @@ class WaybackService:
                     retrieval_date=now_iso,
                     evidence_text=f"First 200 OK capture on {earliest.formatted_date} at {earliest.snapshot_url}",
                     verification_status=VerificationStatus.INDEPENDENTLY_RETRIEVED,
+                    evidence_confidence="INDEPENDENT_ARCHIVE_VERIFIED",
                     limitations=(
                         "Earliest archive capture indicates when Internet Archive crawlers first indexed this site. "
                         "It is NOT proof of domain registration date or business founding date."
@@ -305,6 +330,7 @@ class WaybackService:
             if latest:
                 findings.append(
                     EvidenceFinding(
+                        finding_id=f"wb_latest_{uuid.uuid4().hex[:6]}",
                         field_name="latest_archive_capture",
                         field_label="Most Recent Archive Capture",
                         observed_value=latest.formatted_date,
@@ -314,6 +340,7 @@ class WaybackService:
                         retrieval_date=now_iso,
                         evidence_text=f"Latest 200 OK capture on {latest.formatted_date} at {latest.snapshot_url}",
                         verification_status=VerificationStatus.INDEPENDENTLY_RETRIEVED,
+                        evidence_confidence="INDEPENDENT_ARCHIVE_VERIFIED",
                         limitations="Reflects the latest public crawler snapshot, not current real-time website status.",
                     )
                 )
@@ -321,6 +348,7 @@ class WaybackService:
             if sample_count > 0:
                 findings.append(
                     EvidenceFinding(
+                        finding_id=f"wb_samples_{uuid.uuid4().hex[:6]}",
                         field_name="archive_sample_snapshots",
                         field_label="Timeline Sample Snapshots",
                         observed_value=f"{sample_count} historical snapshot(s) sampled",
@@ -330,6 +358,7 @@ class WaybackService:
                         retrieval_date=now_iso,
                         evidence_text=f"{sample_count} distinct snapshots sampled across historical timeline",
                         verification_status=VerificationStatus.INDEPENDENTLY_RETRIEVED,
+                        evidence_confidence="INDEPENDENT_ARCHIVE_VERIFIED",
                         limitations="Represents a sampled timeline cross-section, not the complete historical crawl archive.",
                     )
                 )
@@ -356,6 +385,7 @@ class WaybackService:
         else:
             findings.append(
                 EvidenceFinding(
+                    finding_id=f"wb_presence_{uuid.uuid4().hex[:6]}",
                     field_name="archive_presence",
                     field_label="Archive Coverage Status",
                     observed_value="NO_SNAPSHOTS_FOUND",
@@ -365,6 +395,7 @@ class WaybackService:
                     retrieval_date=now_iso,
                     evidence_text="No HTTP 200 captures indexed for this domain in Internet Archive CDX",
                     verification_status=VerificationStatus.UNAVAILABLE,
+                    evidence_confidence="DATA_UNAVAILABLE",
                     limitations=(
                         "Absence of snapshots means the site was not crawled or is newly established. "
                         "It does NOT automatically prove a business is fraudulent."

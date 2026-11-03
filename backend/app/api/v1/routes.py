@@ -23,6 +23,8 @@ from backend.app.services.wayback_service import (
     WaybackTimeoutError,
     WaybackRateLimitError,
     WaybackServiceError,
+    WaybackPayloadTooLargeError,
+    WaybackSourceUnavailableError,
 )
 from backend.app.services.ssrf_validator import SSRFValidationError
 from backend.app.services.seller_history_service import SellerHistoryService
@@ -422,6 +424,16 @@ async def research_website_history(
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="The Internet Archive Wayback Machine API request timed out.",
+        )
+    except WaybackPayloadTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Internet Archive response exceeded maximum safe limit.",
+        )
+    except WaybackSourceUnavailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(e),
         )
     except WaybackServiceError as e:
         raise HTTPException(

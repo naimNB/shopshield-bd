@@ -89,14 +89,17 @@ class SellerHistoryService:
                 logger.warning("Could not fetch website history for '%s': %s", website_url, e)
                 unverified_or_unavailable.append(
                     EvidenceFinding(
+                        finding_id="website_archive_presence",
                         field_name="website_archive_presence",
                         field_label="Website Archive Presence",
-                        observed_value="LOOKUP_FAILED",
+                        observed_value="SOURCE_UNAVAILABLE",
                         source_type=SourceType.INTERNET_ARCHIVE_CDX,
                         retrieval_date="",
                         evidence_text=f"Failed to query archive: {str(e)}",
                         verification_status=VerificationStatus.UNAVAILABLE,
-                        limitations="Website archive could not be verified at this time.",
+                        evidence_confidence="DATA_UNAVAILABLE",
+                        review_reason=str(e),
+                        limitations="Internet Archive service was temporarily unavailable.",
                     )
                 )
 
@@ -104,6 +107,7 @@ class SellerHistoryService:
         if not transparency_data:
             unverified_or_unavailable.append(
                 EvidenceFinding(
+                    finding_id="page_transparency_unprovided",
                     field_name="page_transparency",
                     field_label="Facebook Page Transparency",
                     observed_value="NOT_PROVIDED",
@@ -111,6 +115,8 @@ class SellerHistoryService:
                     retrieval_date="",
                     evidence_text="No Page Transparency screenshot was uploaded for this seller",
                     verification_status=VerificationStatus.UNAVAILABLE,
+                    evidence_confidence="UNVERIFIED_INPUT",
+                    review_reason=None,
                     limitations="Upload a screenshot of the Page Transparency card to analyze historical page records.",
                 )
             )
@@ -118,6 +124,7 @@ class SellerHistoryService:
         if not website_url:
             unverified_or_unavailable.append(
                 EvidenceFinding(
+                    finding_id="website_archive_unprovided",
                     field_name="website_archive",
                     field_label="E-Commerce Website Archive",
                     observed_value="NOT_PROVIDED",
@@ -125,6 +132,8 @@ class SellerHistoryService:
                     retrieval_date="",
                     evidence_text="No independent website URL was provided for archive research",
                     verification_status=VerificationStatus.UNAVAILABLE,
+                    evidence_confidence="UNVERIFIED_INPUT",
+                    review_reason=None,
                     limitations="Provide an e-commerce website domain to check Internet Archive Wayback history.",
                 )
             )

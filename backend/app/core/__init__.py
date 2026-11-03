@@ -1,0 +1,41 @@
+"""Core utilities and error taxonomy for ShopShield BD."""
+
+from backend.app.core.errors import (
+    ShopShieldError,
+    InputValidationError,
+    SSRFValidationError,
+    ImageValidationError,
+    PayloadTooLargeError,
+    UnsupportedMediaTypeError,
+    ConfigurationError,
+    AIProviderError,
+    AIQuotaExhaustedError,
+    AITimeoutError,
+    AIResponseValidationError,
+    ExternalSourceError,
+    WaybackServiceError,
+    WaybackTimeoutError,
+    WaybackRateLimitError,
+    WaybackSourceUnavailableError,
+    WaybackPayloadTooLargeError,
+)
+
+__all__ = [
+    "ShopShieldError",
+    "InputValidationError",
+    "SSRFValidationError",
+    "ImageValidationError",
+    "PayloadTooLargeError",
+    "UnsupportedMediaTypeError",
+    "ConfigurationError",
+    "AIProviderError",
+    "AIQuotaExhaustedError",
+    "AITimeoutError",
+    "AIResponseValidationError",
+    "ExternalSourceError",
+    "WaybackServiceError",
+    "WaybackTimeoutError",
+    "WaybackRateLimitError",
+    "WaybackSourceUnavailableError",
+    "WaybackPayloadTooLargeError",
+]

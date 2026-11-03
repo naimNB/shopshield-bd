@@ -10,13 +10,12 @@ import socket
 import urllib.parse
 from typing import Tuple
 
+from backend.app.core.errors import SSRFValidationError
+
 logger = logging.getLogger(__name__)
 
-
-class SSRFValidationError(ValueError):
-    """Raised when a user-provided URL targets a private, loopback, or unsafe destination."""
-    pass
-
+# Re-export for module consumers
+__all__ = ["validate_and_sanitize_url", "SSRFValidationError"]
 
 FORBIDDEN_HOSTNAMES = {
     "localhost",
@@ -30,6 +29,33 @@ CLOUD_METADATA_IPS = {
     "169.254.169.123",
     "fd00:ec2::254",
 }
+
+CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+
+
+def _is_restricted_ip(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address, ip_str: str) -> bool:
+    """Check whether an IP address belongs to internal, cloud-metadata, or reserved space."""
+    if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped:
+        ip_obj = ip_obj.ipv4_mapped
+        ip_str = str(ip_obj)
+
+    if ip_str in CLOUD_METADATA_IPS:
+        return True
+
+    if (
+        ip_obj.is_private
+        or ip_obj.is_loopback
+        or ip_obj.is_link_local
+        or ip_obj.is_reserved
+        or ip_obj.is_multicast
+        or ip_obj.is_unspecified
+    ):
+        return True
+
+    if isinstance(ip_obj, ipaddress.IPv4Address) and ip_obj in CGNAT_NETWORK:
+        return True
+
+    return False
 
 
 def validate_and_sanitize_url(raw_url: str) -> Tuple[str, str]:
@@ -87,16 +113,7 @@ def validate_and_sanitize_url(raw_url: str) -> Tuple[str, str]:
     # If hostname is an IP literal, validate directly
     try:
         ip_obj = ipaddress.ip_address(hostname)
-        if hostname in CLOUD_METADATA_IPS:
-            raise SSRFValidationError("Access to cloud metadata IP addresses is strictly blocked.")
-        if (
-            ip_obj.is_private
-            or ip_obj.is_loopback
-            or ip_obj.is_link_local
-            or ip_obj.is_reserved
-            or ip_obj.is_multicast
-            or ip_obj.is_unspecified
-        ):
+        if _is_restricted_ip(ip_obj, hostname):
             raise SSRFValidationError(
                 f"Destination resolves to restricted/internal IP address ({hostname}). Access blocked."
             )
@@ -107,24 +124,14 @@ def validate_and_sanitize_url(raw_url: str) -> Tuple[str, str]:
     # Perform DNS resolution and validate all returned IP addresses
     try:
         addr_info = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
-        for family, _, _, _, sockaddr in addr_info:
+        for _, _, _, _, sockaddr in addr_info:
             ip_str = sockaddr[0]
             try:
                 ip_obj = ipaddress.ip_address(ip_str)
             except ValueError:
                 continue
 
-            if ip_str in CLOUD_METADATA_IPS:
-                raise SSRFValidationError("Access to cloud metadata IP addresses is strictly blocked.")
-
-            if (
-                ip_obj.is_private
-                or ip_obj.is_loopback
-                or ip_obj.is_link_local
-                or ip_obj.is_reserved
-                or ip_obj.is_multicast
-                or ip_obj.is_unspecified
-            ):
+            if _is_restricted_ip(ip_obj, ip_str):
                 raise SSRFValidationError(
                     f"Hostname '{hostname}' resolves to restricted/internal IP address ({ip_str}). Access blocked."
                 )

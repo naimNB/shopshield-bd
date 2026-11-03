@@ -17,34 +17,27 @@ from google.genai.errors import APIError
 import httpx
 
 from backend.app.config import settings
+from backend.app.core.errors import (
+    ConfigurationError,
+    AIProviderError,
+    AIQuotaExhaustedError,
+    AITimeoutError,
+    AIResponseValidationError,
+)
 from backend.app.schemas.claims import ExtractedClaims, SingleClaim
 
 logger = logging.getLogger(__name__)
 
-
-class ConfigurationError(Exception):
-    """Raised when the AI extraction service is missing required configuration."""
-    pass
-
-
-class AIProviderError(Exception):
-    """Base exception for AI provider communication failures."""
-    pass
-
-
-class AIQuotaExhaustedError(AIProviderError):
-    """Raised when the Gemini API rate limit or quota is exhausted."""
-    pass
-
-
-class AITimeoutError(AIProviderError):
-    """Raised when the request to Gemini API times out."""
-    pass
-
-
-class AIResponseValidationError(AIProviderError):
-    """Raised when the AI response does not match the expected schema."""
-    pass
+__all__ = [
+    "AIExtractorService",
+    "ConfigurationError",
+    "AIProviderError",
+    "AIQuotaExhaustedError",
+    "AITimeoutError",
+    "AIResponseValidationError",
+    "verify_evidence_in_text",
+    "normalize_whitespace",
+]
 
 
 def normalize_whitespace(text: str) -> str:

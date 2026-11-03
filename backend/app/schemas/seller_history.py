@@ -5,8 +5,10 @@ Supports evidence-based Facebook Page Transparency extraction, Internet Archive
 Strictly avoids fake trust scores, scam probabilities, or subjective fraud accusations.
 """
 
+from datetime import date
 from enum import Enum
 from typing import List, Optional, Any
+import uuid
 from pydantic import BaseModel, Field
 
 
@@ -16,6 +18,7 @@ class SourceType(str, Enum):
     INTERNET_ARCHIVE_CDX = "INTERNET_ARCHIVE_CDX"
     COMMERCE_REGISTRY = "COMMERCE_REGISTRY"
     UNVERIFIED_INPUT = "UNVERIFIED_INPUT"
+    USER_INPUT = "USER_INPUT"
 
 
 class VerificationStatus(str, Enum):
@@ -26,8 +29,57 @@ class VerificationStatus(str, Enum):
     NEEDS_REVIEW = "NEEDS_REVIEW"
 
 
+class DatePrecision(str, Enum):
+    """Historical date granularity."""
+    DAY = "DAY"
+    MONTH = "MONTH"
+    YEAR = "YEAR"
+    UNKNOWN = "UNKNOWN"
+
+
+class HistoricalDateInterval(BaseModel):
+    """Precision-aware date representation using closed intervals [start_date, end_date]."""
+    raw_text: str = Field(default="", description="Original raw date string")
+    precision: DatePrecision = Field(DatePrecision.UNKNOWN, description="Date precision: DAY, MONTH, YEAR, UNKNOWN")
+    start_date: Optional[date] = Field(None, description="Earliest possible date in this interval (inclusive)")
+    end_date: Optional[date] = Field(None, description="Latest possible date in this interval (inclusive)")
+    is_valid: bool = Field(True, description="Whether this represents a physically possible calendar date")
+    error_message: Optional[str] = Field(None, description="Explanation if date parsing failed or was impossible")
+
+    def overlaps(self, other: "HistoricalDateInterval") -> bool:
+        """Check if two valid date intervals overlap."""
+        if not self.is_valid or not other.is_valid or not self.start_date or not other.start_date:
+            return False
+        if not self.end_date or not other.end_date:
+            return False
+        return self.start_date <= other.end_date and self.end_date >= other.start_date
+
+    def strictly_before(self, other: "HistoricalDateInterval") -> bool:
+        """Check if this interval ends strictly before the other begins."""
+        if not self.is_valid or not other.is_valid or not self.end_date or not other.start_date:
+            return False
+        return self.end_date < other.start_date
+
+    def strictly_after(self, other: "HistoricalDateInterval") -> bool:
+        """Check if this interval begins strictly after the other ends."""
+        if not self.is_valid or not other.is_valid or not self.start_date or not other.end_date:
+            return False
+        return self.start_date > other.end_date
+
+
+class CoverageStatus(str, Enum):
+    """Standardized coverage status for historical website archives."""
+    DATE_RANGE_VERIFIED = "DATE_RANGE_VERIFIED"
+    PARTIAL_COVERAGE = "PARTIAL_COVERAGE"
+    NO_ARCHIVES = "NO_ARCHIVES"
+    SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
+    RATE_LIMITED = "RATE_LIMITED"
+    TIMEOUT = "TIMEOUT"
+
+
 class EvidenceFinding(BaseModel):
     """An individual verifiable finding with strict evidence provenance."""
+    finding_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12], description="Unique identifier for this finding")
     field_name: str = Field(..., description="Machine-readable field key, e.g. page_creation_date, name_changes")
     field_label: str = Field(..., description="Human-readable label in English/Bangla")
     observed_value: Any = Field(..., description="Factual observed value (date, name, list, count, or string)")
@@ -37,13 +89,16 @@ class EvidenceFinding(BaseModel):
     retrieval_date: str = Field(..., description="ISO 8601 timestamp of when ShopShield BD extracted/retrieved this finding")
     evidence_text: Optional[str] = Field(None, description="Exact verbatim text or snippet supporting this finding")
     verification_status: VerificationStatus = Field(..., description="Verification status of the finding")
+    evidence_confidence: Optional[str] = Field(None, description="Objective confidence rating: INDEPENDENT_ARCHIVE_VERIFIED, USER_SCREENSHOT_EXTRACTED, etc.")
     limitations: str = Field(..., description="Explicit methodological limitation or disclaimer for this specific finding")
+    review_reason: Optional[str] = Field(None, description="Specific reason why manual review is needed if status is NEEDS_REVIEW")
 
 
 class PageNameChange(BaseModel):
     """A single recorded page name change from the Page Transparency panel."""
     previous_name: str = Field(..., description="Previous name of the page")
     change_date: Optional[str] = Field(None, description="Date the name was changed, if visible")
+    date_interval: Optional[HistoricalDateInterval] = Field(None, description="Precision-aware parsed date interval")
     evidence_text: Optional[str] = Field(None, description="Exact visible text snippet from the screenshot")
 
 
@@ -58,6 +113,7 @@ class PageTransparencyData(BaseModel):
     """Extracted data from a Facebook Page Transparency panel screenshot."""
     page_name: Optional[str] = Field(None, description="Visible name of the Facebook page")
     page_creation_date: Optional[str] = Field(None, description="Visible creation date string")
+    creation_date_interval: Optional[HistoricalDateInterval] = Field(None, description="Precision-aware parsed creation interval")
     page_age_months: Optional[int] = Field(None, description="Calculated age in months if creation date is parseable")
     name_changes_count: int = Field(0, description="Total number of visible name changes")
     name_changes: List[PageNameChange] = Field(default_factory=list, description="List of previous names and dates")
@@ -65,7 +121,7 @@ class PageTransparencyData(BaseModel):
     manager_locations: List[PageManagerLocation] = Field(default_factory=list, description="Manager country locations")
     is_running_ads: Optional[bool] = Field(None, description="Whether the page is currently running ads")
     unreadable_or_missing_fields: List[str] = Field(default_factory=list, description="Fields not visible or unreadable in image")
-    timeline_consistency_status: str = Field("CONSISTENT", description="Timeline validation status: CONSISTENT or NEEDS_REVIEW")
+    timeline_consistency_status: str = Field("CONSISTENT", description="Timeline validation status: CONSISTENT, NEEDS_REVIEW, INSUFFICIENT_INFORMATION")
     timeline_conflicts: List[str] = Field(default_factory=list, description="Specific timeline discrepancies detected")
     raw_extracted_text: str = Field("", description="Full visible text transcribed from the screenshot")
 
@@ -98,7 +154,7 @@ class WebsiteArchiveData(BaseModel):
     target_url: str = Field(..., description="Original URL provided by user")
     cleaned_domain: str = Field(..., description="Normalized hostname/domain queried on Wayback CDX")
     archive_available: bool = Field(False, description="Whether any archived snapshots were found")
-    coverage_status: str = Field("SAMPLED", description="Coverage status: COMPLETE, SAMPLED, NO_ARCHIVES, RATE_LIMITED, TIMEOUT, UNAVAILABLE")
+    coverage_status: str = Field("DATE_RANGE_VERIFIED", description="Coverage status: DATE_RANGE_VERIFIED, PARTIAL_COVERAGE, NO_ARCHIVES, SOURCE_UNAVAILABLE, RATE_LIMITED, TIMEOUT")
     earliest_snapshot: Optional[WebsiteArchiveSnapshot] = Field(None, description="Earliest recorded archive capture")
     latest_snapshot: Optional[WebsiteArchiveSnapshot] = Field(None, description="Most recent recorded archive capture")
     sample_snapshots_count: int = Field(0, description="Count of historical snapshots in sample")

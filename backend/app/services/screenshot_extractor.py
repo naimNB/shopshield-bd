@@ -18,20 +18,29 @@ from google.genai.errors import APIError
 import httpx
 
 from backend.app.config import settings
-from backend.app.schemas.screenshot import ScreenshotExtractionResponse
-from backend.app.services.ai_extractor import (
+from backend.app.core.errors import (
+    ImageValidationError,
     ConfigurationError,
     AIProviderError,
     AIQuotaExhaustedError,
     AITimeoutError,
 )
+from backend.app.schemas.screenshot import ScreenshotExtractionResponse
 
 logger = logging.getLogger(__name__)
 
+# Enforce Pillow decompression bomb limit (100 megapixels)
+Image.MAX_IMAGE_PIXELS = 100_000_000
 
-class ImageValidationError(Exception):
-    """Raised when an uploaded screenshot is corrupt, unreadable, or invalid."""
-    pass
+# Re-export for module consumers
+__all__ = [
+    "ScreenshotExtractorService",
+    "ImageValidationError",
+    "ConfigurationError",
+    "AIProviderError",
+    "AIQuotaExhaustedError",
+    "AITimeoutError",
+]
 
 
 OCR_SYSTEM_PROMPT = """You are an objective, highly accurate Optical Character Recognition (OCR) assistant specialized in Bangladesh e-commerce and f-commerce screenshots (Facebook page captions, Marketplace product posts, Messenger chats, WhatsApp conversations, SMS, or courier delivery slips).

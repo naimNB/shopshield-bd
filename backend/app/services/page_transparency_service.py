@@ -18,9 +18,13 @@ from google.genai import types
 from google.genai.errors import APIError
 import httpx
 
+import calendar
+
 from backend.app.config import settings
 from backend.app.schemas.seller_history import (
+    DatePrecision,
     EvidenceFinding,
+    HistoricalDateInterval,
     PageManagerLocation,
     PageNameChange,
     PageTransparencyData,
@@ -84,108 +88,239 @@ MONTH_MAP = {
 }
 
 
-def parse_date_to_comparable(d_str: Optional[str]) -> Optional[date]:
-    """Parse common human date strings from Facebook Page Transparency into comparable date objects.
+def parse_date_to_interval(d_str: Optional[str]) -> HistoricalDateInterval:
+    """Parse common human date strings from Facebook Page Transparency into a closed interval [start_date, end_date].
 
-    Handles formats such as:
-    - YYYY-MM-DD (e.g. '2024-10-14')
-    - '14 October 2024', '14 Oct 2024'
-    - 'October 14, 2024', 'Oct 14, 2024'
-    - 'October 2024', 'Oct 2024' -> date(2024, 10, 1)
-    - '2024' -> date(2024, 1, 1)
+    Handles:
+    - YYYY-MM-DD -> DAY precision (e.g. '2024-10-14' -> [2024-10-14, 2024-10-14])
+    - '14 October 2024', '14 Oct 2024' -> DAY precision
+    - 'October 14, 2024', 'Oct 14, 2024' -> DAY precision
+    - 'October 2024', 'Oct 2024', '2024-10' -> MONTH precision (e.g. [2024-10-01, 2024-10-31])
+    - '2024' -> YEAR precision (e.g. [2024-01-01, 2024-12-31])
+
+    If dates are impossible (e.g. '31 February 2024' or month 13), returns is_valid=False.
     """
     if not d_str or not isinstance(d_str, str):
-        return None
+        return HistoricalDateInterval(
+            raw_text="", precision=DatePrecision.UNKNOWN, is_valid=False
+        )
 
     clean_str = d_str.strip()
     if not clean_str:
-        return None
+        return HistoricalDateInterval(
+            raw_text="", precision=DatePrecision.UNKNOWN, is_valid=False
+        )
 
-    # 1. ISO format: YYYY-MM-DD
+    # 1. Day precision: ISO format YYYY-MM-DD
     m_iso = re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", clean_str)
     if m_iso:
+        y, m, d = int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))
         try:
-            return date(int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3)))
-        except ValueError:
-            pass
+            val = date(y, m, d)
+            return HistoricalDateInterval(
+                raw_text=clean_str,
+                start_date=val,
+                end_date=val,
+                precision=DatePrecision.DAY,
+                is_valid=True,
+            )
+        except ValueError as err:
+            return HistoricalDateInterval(
+                raw_text=clean_str,
+                precision=DatePrecision.DAY,
+                is_valid=False,
+                error_message=str(err),
+            )
 
-    # 2. Day Month Year: e.g. "14 October 2024", "14 Oct 2024"
+    # 2. Day precision: Day Month Year (e.g. "14 October 2024", "14 Oct 2024")
     m_dmy = re.search(r"\b(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\b", clean_str)
     if m_dmy:
         m_str = m_dmy.group(2).lower()
         if m_str in MONTH_MAP:
+            y, m, d = int(m_dmy.group(3)), MONTH_MAP[m_str], int(m_dmy.group(1))
             try:
-                return date(int(m_dmy.group(3)), MONTH_MAP[m_str], int(m_dmy.group(1)))
-            except ValueError:
-                pass
+                val = date(y, m, d)
+                return HistoricalDateInterval(
+                    raw_text=clean_str,
+                    start_date=val,
+                    end_date=val,
+                    precision=DatePrecision.DAY,
+                    is_valid=True,
+                )
+            except ValueError as err:
+                return HistoricalDateInterval(
+                    raw_text=clean_str,
+                    precision=DatePrecision.DAY,
+                    is_valid=False,
+                    error_message=str(err),
+                )
 
-    # 3. Month Day, Year: e.g. "October 14, 2024", "Oct 14 2024"
+    # 3. Day precision: Month Day, Year (e.g. "October 14, 2024", "Oct 14 2024")
     m_mdy = re.search(r"\b([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})\b", clean_str)
     if m_mdy:
         m_str = m_mdy.group(1).lower()
         if m_str in MONTH_MAP:
+            y, m, d = int(m_mdy.group(3)), MONTH_MAP[m_str], int(m_mdy.group(2))
             try:
-                return date(int(m_mdy.group(3)), MONTH_MAP[m_str], int(m_mdy.group(2)))
-            except ValueError:
-                pass
+                val = date(y, m, d)
+                return HistoricalDateInterval(
+                    raw_text=clean_str,
+                    start_date=val,
+                    end_date=val,
+                    precision=DatePrecision.DAY,
+                    is_valid=True,
+                )
+            except ValueError as err:
+                return HistoricalDateInterval(
+                    raw_text=clean_str,
+                    precision=DatePrecision.DAY,
+                    is_valid=False,
+                    error_message=str(err),
+                )
 
-    # 4. Month Year: e.g. "October 2024"
+    # 4. Month precision: Month Year (e.g. "October 2024", "Oct 2024")
     m_my = re.search(r"\b([A-Za-z]+)\s+(\d{4})\b", clean_str)
     if m_my:
         m_str = m_my.group(1).lower()
         if m_str in MONTH_MAP:
+            y, m = int(m_my.group(2)), MONTH_MAP[m_str]
             try:
-                return date(int(m_my.group(2)), MONTH_MAP[m_str], 1)
-            except ValueError:
-                pass
+                last_day = calendar.monthrange(y, m)[1]
+                return HistoricalDateInterval(
+                    raw_text=clean_str,
+                    start_date=date(y, m, 1),
+                    end_date=date(y, m, last_day),
+                    precision=DatePrecision.MONTH,
+                    is_valid=True,
+                )
+            except ValueError as err:
+                return HistoricalDateInterval(
+                    raw_text=clean_str,
+                    precision=DatePrecision.MONTH,
+                    is_valid=False,
+                    error_message=str(err),
+                )
 
-    # 5. Year only: e.g. "2024"
+    # 5. Month precision: YYYY-MM (e.g. "2024-10")
+    m_ym = re.search(r"\b(\d{4})-(\d{1,2})\b", clean_str)
+    if m_ym:
+        y, m = int(m_ym.group(1)), int(m_ym.group(2))
+        try:
+            last_day = calendar.monthrange(y, m)[1]
+            return HistoricalDateInterval(
+                raw_text=clean_str,
+                start_date=date(y, m, 1),
+                end_date=date(y, m, last_day),
+                precision=DatePrecision.MONTH,
+                is_valid=True,
+            )
+        except ValueError as err:
+            return HistoricalDateInterval(
+                raw_text=clean_str,
+                precision=DatePrecision.MONTH,
+                is_valid=False,
+                error_message=str(err),
+            )
+
+    # 6. Year precision: Year only (e.g. "2024")
     m_y = re.search(r"\b(20\d\d|19\d\d)\b", clean_str)
     if m_y:
-        try:
-            return date(int(m_y.group(1)), 1, 1)
-        except ValueError:
-            pass
+        y = int(m_y.group(1))
+        return HistoricalDateInterval(
+            raw_text=clean_str,
+            start_date=date(y, 1, 1),
+            end_date=date(y, 12, 31),
+            precision=DatePrecision.YEAR,
+            is_valid=True,
+        )
 
-    return None
+    return HistoricalDateInterval(
+        raw_text=clean_str,
+        precision=DatePrecision.UNKNOWN,
+        is_valid=False,
+        error_message="Could not parse date format",
+    )
+
+
+def parse_date_to_comparable(d_str: Optional[str]) -> Optional[date]:
+    """Parse common human date strings from Facebook Page Transparency into comparable date objects."""
+    interval = parse_date_to_interval(d_str)
+    if not interval.is_valid or not interval.start_date:
+        return None
+    return interval.start_date
 
 
 def check_timeline_consistency(data: PageTransparencyData) -> Tuple[str, List[str]]:
-    """Validate timeline consistency in Facebook Page Transparency records.
+    """Validate timeline consistency in Facebook Page Transparency records using date intervals.
 
     Detects:
+    - Impossible calendar dates (e.g., February 31)
     - Creation date in the future
     - Name change dates in the future
-    - Name change date preceding the page creation date
+    - Name change date strictly preceding the page creation date (non-overlapping)
 
-    Returns (status, conflicts) where status is 'CONSISTENT' or 'NEEDS_REVIEW'.
+    Returns (status, conflicts) where status is:
+    - 'CONSISTENT'
+    - 'NEEDS_REVIEW'
+    - 'INSUFFICIENT_INFORMATION'
     """
     conflicts: List[str] = []
     today = datetime.now(timezone.utc).date()
+    today_iso = today.isoformat()
+    today_interval = HistoricalDateInterval(
+        raw_text=today_iso,
+        start_date=today,
+        end_date=today,
+        precision=DatePrecision.DAY,
+        is_valid=True,
+    )
 
-    parsed_creation: Optional[date] = None
+    creation_interval: Optional[HistoricalDateInterval] = None
+    has_date_info = False
+
     if data.page_creation_date:
-        parsed_creation = parse_date_to_comparable(data.page_creation_date)
-        if parsed_creation and parsed_creation > today:
+        has_date_info = True
+        creation_interval = parse_date_to_interval(data.page_creation_date)
+        if not creation_interval.is_valid:
             conflicts.append(
-                f"Page creation date '{data.page_creation_date}' is in the future (after current date {today.isoformat()})."
+                f"Page creation date '{data.page_creation_date}' could not be parsed as a valid calendar date."
+            )
+        elif creation_interval.strictly_after(today_interval):
+            conflicts.append(
+                f"Page creation date '{data.page_creation_date}' is in the future (after current date {today_iso})."
             )
 
     for nc in data.name_changes:
         if nc.change_date:
-            parsed_nc = parse_date_to_comparable(nc.change_date)
-            if parsed_nc:
-                if parsed_nc > today:
+            has_date_info = True
+            nc_interval = parse_date_to_interval(nc.change_date)
+            if not nc_interval.is_valid:
+                conflicts.append(
+                    f"Name change date '{nc.change_date}' for previous name '{nc.previous_name}' could not be parsed as a valid calendar date."
+                )
+            else:
+                if nc_interval.strictly_after(today_interval):
                     conflicts.append(
                         f"Name change date '{nc.change_date}' for previous name '{nc.previous_name}' is in the future."
                     )
-                if parsed_creation and parsed_nc < parsed_creation:
-                    conflicts.append(
-                        f"Name change date '{nc.change_date}' for previous name '{nc.previous_name}' precedes page creation date '{data.page_creation_date}'."
-                    )
+                # Check if name change strictly precedes page creation
+                # Overlapping intervals (e.g. 2024 and March 2024) are NOT contradictions
+                if creation_interval and creation_interval.is_valid:
+                    if nc_interval.strictly_before(creation_interval):
+                        conflicts.append(
+                            f"Name change date '{nc.change_date}' for previous name '{nc.previous_name}' precedes page creation date '{data.page_creation_date}'."
+                        )
 
-    status = "NEEDS_REVIEW" if conflicts else "CONSISTENT"
-    return status, conflicts
+    if conflicts:
+        return "NEEDS_REVIEW", conflicts
+
+    if not has_date_info or (creation_interval is None and not data.name_changes):
+        return "INSUFFICIENT_INFORMATION", []
+
+    if creation_interval and creation_interval.is_valid:
+        return "CONSISTENT", []
+
+    return "INSUFFICIENT_INFORMATION", []
 
 
 def calculate_page_age_months(creation_date_str: Optional[str]) -> Optional[int]:
@@ -409,6 +544,7 @@ class PageTransparencyService:
         if data.page_name:
             findings.append(
                 EvidenceFinding(
+                    finding_id="page_transparency_page_name",
                     field_name="page_name",
                     field_label="Visible Page Name",
                     observed_value=data.page_name,
@@ -417,6 +553,8 @@ class PageTransparencyService:
                     retrieval_date=now_iso,
                     evidence_text=f"Displayed name: {data.page_name}",
                     verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
+                    evidence_confidence="USER_SCREENSHOT_EXTRACTED",
+                    review_reason=None,
                     limitations=disclaimer_note,
                 )
             )
@@ -426,8 +564,9 @@ class PageTransparencyService:
             age_desc = f" (~{data.page_age_months} months ago)" if data.page_age_months is not None else ""
             if creation_conflicts:
                 date_status = VerificationStatus.NEEDS_REVIEW
+                date_review_reason = "; ".join(creation_conflicts)
                 date_limitations = (
-                    f"Timeline anomaly detected: {'; '.join(creation_conflicts)}. "
+                    f"Timeline anomaly detected: {date_review_reason}. "
                     "Creation date is future-dated or contradicts historical timeline. "
                     "Screenshot evidence requires manual review; does not imply fraud."
                 )
@@ -437,10 +576,12 @@ class PageTransparencyService:
                 )
             else:
                 date_status = VerificationStatus.USER_PROVIDED_UNVERIFIED
+                date_review_reason = None
                 date_limitations = disclaimer_note
 
             findings.append(
                 EvidenceFinding(
+                    finding_id="page_transparency_page_creation_date",
                     field_name="page_creation_date",
                     field_label="Page Creation Date",
                     observed_value=f"{data.page_creation_date}{age_desc}",
@@ -449,6 +590,8 @@ class PageTransparencyService:
                     retrieval_date=now_iso,
                     evidence_text=f"Visible creation date: {data.page_creation_date}",
                     verification_status=date_status,
+                    evidence_confidence="USER_SCREENSHOT_EXTRACTED",
+                    review_reason=date_review_reason,
                     limitations=date_limitations,
                 )
             )
@@ -467,6 +610,7 @@ class PageTransparencyService:
         else:
             findings.append(
                 EvidenceFinding(
+                    finding_id="page_transparency_page_creation_date",
                     field_name="page_creation_date",
                     field_label="Page Creation Date",
                     observed_value="NOT_VISIBLE_IN_SCREENSHOT",
@@ -474,6 +618,8 @@ class PageTransparencyService:
                     retrieval_date=now_iso,
                     evidence_text="Creation date was blurred, cropped, or not included in the uploaded screenshot",
                     verification_status=VerificationStatus.UNAVAILABLE,
+                    evidence_confidence="DATA_UNAVAILABLE",
+                    review_reason=None,
                     limitations="Missing from image. Check Facebook Page Transparency panel directly.",
                 )
             )
@@ -486,17 +632,19 @@ class PageTransparencyService:
             names_summary = ", ".join([f"'{nc.previous_name}'" for nc in data.name_changes])
             if nc_conflicts:
                 nc_status = VerificationStatus.NEEDS_REVIEW
+                nc_review_reason = "; ".join(nc_conflicts)
                 nc_limitations = (
-                    f"Timeline anomaly detected: {'; '.join(nc_conflicts)}. "
+                    f"Timeline anomaly detected: {nc_review_reason}. "
                     "Recorded name change date contradicts page creation date or is future-dated. "
                     "Historical observation does not imply fraud."
                 )
                 buyer_questions.append(
-                    f"পেজের নাম পরিবর্তনের ইতিহাসে অসঙ্গতি দেখা গেছে ({'; '.join(nc_conflicts)})। "
+                    f"পেজের নাম পরিবর্তনের ইতিহাসে অসঙ্গতি দেখা গেছে ({nc_review_reason})। "
                     "শপটি কি পূর্বে অন্য কোনো পণ্য বিক্রি করত নাকি রিব্র্যান্ডিং হয়েছে, তা বিক্রেতার সাথে স্পষ্ট করুন।"
                 )
             else:
                 nc_status = VerificationStatus.USER_PROVIDED_UNVERIFIED
+                nc_review_reason = None
                 nc_limitations = (
                     "Name changes are factual historical records. Businesses legitimately rebrand, "
                     "merge, or pivot. This observation does not constitute proof of fraud."
@@ -508,6 +656,7 @@ class PageTransparencyService:
 
             findings.append(
                 EvidenceFinding(
+                    finding_id="page_transparency_name_changes",
                     field_name="page_name_changes",
                     field_label="Page Name Change History",
                     observed_value=f"{data.name_changes_count} previous name(s): {names_summary}",
@@ -515,12 +664,15 @@ class PageTransparencyService:
                     retrieval_date=now_iso,
                     evidence_text=f"Recorded {data.name_changes_count} name change(s): {names_summary}",
                     verification_status=nc_status,
+                    evidence_confidence="USER_SCREENSHOT_EXTRACTED",
+                    review_reason=nc_review_reason,
                     limitations=nc_limitations,
                 )
             )
         else:
             findings.append(
                 EvidenceFinding(
+                    finding_id="page_transparency_name_changes",
                     field_name="page_name_changes",
                     field_label="Page Name Change History",
                     observed_value="NO_NAME_CHANGES_RECORDED",
@@ -528,6 +680,8 @@ class PageTransparencyService:
                     retrieval_date=now_iso,
                     evidence_text="Screenshot indicates no recorded name changes or 0 changes",
                     verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
+                    evidence_confidence="USER_SCREENSHOT_EXTRACTED",
+                    review_reason=None,
                     limitations=disclaimer_note,
                 )
             )
@@ -540,6 +694,7 @@ class PageTransparencyService:
             ])
             findings.append(
                 EvidenceFinding(
+                    finding_id="page_transparency_manager_locations",
                     field_name="manager_locations",
                     field_label="Page Manager Primary Countries",
                     observed_value=locs_str,
@@ -547,6 +702,8 @@ class PageTransparencyService:
                     retrieval_date=now_iso,
                     evidence_text=f"Reported management locations: {locs_str}",
                     verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
+                    evidence_confidence="USER_SCREENSHOT_EXTRACTED",
+                    review_reason=None,
                     limitations=disclaimer_note,
                 )
             )
@@ -565,6 +722,7 @@ class PageTransparencyService:
             ads_label = "Running active Meta advertisements" if data.is_running_ads else "Not currently running advertisements"
             findings.append(
                 EvidenceFinding(
+                    finding_id="page_transparency_ad_campaign_status",
                     field_name="ad_campaign_status",
                     field_label="Meta Advertisement Status",
                     observed_value=ads_label,
@@ -572,6 +730,8 @@ class PageTransparencyService:
                     retrieval_date=now_iso,
                     evidence_text=f"Reported ads status: {ads_label}",
                     verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
+                    evidence_confidence="USER_SCREENSHOT_EXTRACTED",
+                    review_reason=None,
                     limitations=disclaimer_note,
                 )
             )

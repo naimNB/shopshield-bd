@@ -23,6 +23,9 @@ from PIL import Image, ImageDraw
 
 from backend.app.main import app
 from backend.app.schemas.seller_history import (
+    CoverageStatus,
+    DatePrecision,
+    HistoricalDateInterval,
     PageNameChange,
     PageTransparencyData,
     SourceType,
@@ -34,6 +37,7 @@ from backend.app.services.page_transparency_service import (
     PageTransparencyService,
     calculate_page_age_months,
     parse_date_to_comparable,
+    parse_date_to_interval,
     check_timeline_consistency,
 )
 from backend.app.services.ssrf_validator import (
@@ -44,6 +48,8 @@ from backend.app.services.wayback_service import (
     WaybackService,
     WaybackTimeoutError,
     WaybackRateLimitError,
+    WaybackPayloadTooLargeError,
+    WaybackSourceUnavailableError,
     validate_and_format_timestamp,
 )
 from backend.app.services.seller_history_service import SellerHistoryService
@@ -202,7 +208,7 @@ def test_wayback_service_with_valid_archive():
 
         assert resp.status == "success"
         assert resp.website_data.archive_available is True
-        assert resp.website_data.coverage_status == "COMPLETE"
+        assert resp.website_data.coverage_status == "DATE_RANGE_VERIFIED"
         assert resp.website_data.sample_snapshots_count == 3
         assert resp.website_data.earliest_snapshot.formatted_date == "2015-01-10"
         assert resp.website_data.latest_snapshot.formatted_date == "2024-01-01"
@@ -249,7 +255,7 @@ def test_wayback_service_large_history_independent_earliest_latest():
         resp = service.fetch_website_history("https://daraz.com.bd")
 
         assert resp.status == "success"
-        assert resp.website_data.coverage_status == "COMPLETE"
+        assert resp.website_data.coverage_status == "DATE_RANGE_VERIFIED"
         # Earliest must be 2014
         assert resp.website_data.earliest_snapshot.formatted_date == "2014-11-04"
         # Latest must be 2026, NOT an intermediate date
@@ -618,3 +624,190 @@ def test_live_gemini_page_transparency_extraction():
         if "quota" in str(e).lower() or "429" in str(e):
             pytest.skip("Live Gemini API quota reached during multimodal OCR test.")
         raise
+
+
+# ============================================================================
+# 6. TASK 08 RELIABILITY & EVIDENCE INTEGRITY REGRESSION TESTS
+# ============================================================================
+
+def test_ssrf_rejects_cgnat_and_ipv4_mapped_ipv6():
+    """Verify SSRF validator rejects CGNAT (100.64.0.0/10) and IPv4-mapped IPv6 addresses."""
+    # CGNAT range (100.64.0.0 - 100.127.255.255)
+    with pytest.raises(SSRFValidationError, match="restricted/internal IP"):
+        validate_and_sanitize_url("http://100.64.0.1/admin")
+
+    with pytest.raises(SSRFValidationError, match="restricted/internal IP"):
+        validate_and_sanitize_url("http://100.127.255.254/status")
+
+    # IPv4-mapped IPv6 loopback and metadata
+    with pytest.raises(SSRFValidationError, match="restricted/internal IP"):
+        validate_and_sanitize_url("http://[::ffff:127.0.0.1]/internal")
+
+    with pytest.raises(SSRFValidationError, match="restricted/internal IP|cloud metadata"):
+        validate_and_sanitize_url("http://[::ffff:169.254.169.254]/latest/meta-data/")
+
+
+def test_timeline_precision_overlapping_intervals_consistent():
+    """Verify that partial date precision overlap (e.g. 2024 vs March 2024) is CONSISTENT."""
+    # Creation 2024 ([2024-01-01, 2024-12-31]) and name change March 2024 ([2024-03-01, 2024-03-31])
+    data = PageTransparencyData(
+        page_name="Gadget BD",
+        page_creation_date="2024",
+        name_changes=[
+            PageNameChange(previous_name="Viral Page", change_date="March 2024"),
+        ],
+        raw_extracted_text="Gadget BD 2024 Viral Page March 2024",
+    )
+    status, conflicts = check_timeline_consistency(data)
+    assert status == "CONSISTENT"
+    assert len(conflicts) == 0
+
+    # Creation 2024 and name change 2024
+    data2 = PageTransparencyData(
+        page_name="Gadget BD",
+        page_creation_date="2024",
+        name_changes=[
+            PageNameChange(previous_name="Old Name", change_date="2024"),
+        ],
+        raw_extracted_text="Gadget BD 2024 Old Name 2024",
+    )
+    status2, conflicts2 = check_timeline_consistency(data2)
+    assert status2 == "CONSISTENT"
+    assert len(conflicts2) == 0
+
+
+def test_timeline_precision_strict_preceding_contradiction_needs_review():
+    """Verify that a name change occurring strictly before page creation triggers NEEDS_REVIEW."""
+    data = PageTransparencyData(
+        page_name="Gadget BD",
+        page_creation_date="2024",
+        name_changes=[
+            PageNameChange(previous_name="Old Name", change_date="2022"),
+        ],
+        raw_extracted_text="Gadget BD 2024 Old Name 2022",
+    )
+    status, conflicts = check_timeline_consistency(data)
+    assert status == "NEEDS_REVIEW"
+    assert any("precedes page creation date" in c for c in conflicts)
+
+
+def test_timeline_impossible_calendar_dates_needs_review():
+    """Verify that impossible dates (e.g. Feb 31) are detected and flagged as NEEDS_REVIEW."""
+    data = PageTransparencyData(
+        page_name="Bogus Dates Store",
+        page_creation_date="31 February 2024",
+        raw_extracted_text="Bogus Dates Store 31 February 2024",
+    )
+    status, conflicts = check_timeline_consistency(data)
+    assert status == "NEEDS_REVIEW"
+    assert any("valid calendar date" in c for c in conflicts)
+
+
+def test_timeline_insufficient_information_when_dates_missing():
+    """Verify that missing dates yield INSUFFICIENT_INFORMATION rather than false CONSISTENT."""
+    data = PageTransparencyData(
+        page_name="No Date Page",
+        page_creation_date=None,
+        name_changes=[],
+        raw_extracted_text="No Date Page",
+    )
+    status, conflicts = check_timeline_consistency(data)
+    assert status == "INSUFFICIENT_INFORMATION"
+    assert len(conflicts) == 0
+
+
+def test_wayback_oversized_response_raises_payload_too_large():
+    """Verify that an oversized streaming response from Wayback CDX raises WaybackPayloadTooLargeError."""
+    service = WaybackService()
+
+    class FakeOversizedStream:
+        status_code = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def raise_for_status(self):
+            pass
+        def iter_bytes(self, chunk_size=65536):
+            # Yield chunks that exceed MAX_RESPONSE_BYTES (5 MB)
+            chunk = b"X" * (1024 * 1024)  # 1 MB
+            for _ in range(6):
+                yield chunk
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def stream(self, method, url, params=None):
+            return FakeOversizedStream()
+
+    with patch.object(service, "_client_context", return_value=FakeClient()):
+        with pytest.raises(WaybackPayloadTooLargeError, match="maximum allowable size"):
+            service.query_cdx_raw({"url": "example.com"})
+
+    # Test HTTP endpoint returns 502 Bad Gateway
+    with patch.object(WaybackService, "fetch_website_history", side_effect=WaybackPayloadTooLargeError):
+        r = client.post("/api/v1/seller-history/website", json={"url": "https://example.com"})
+        assert r.status_code == 502
+        assert "maximum safe limit" in r.json()["detail"].lower()
+
+
+def test_wayback_malformed_json_raises_source_unavailable():
+    """Verify that malformed/HTML responses from Wayback raise WaybackSourceUnavailableError, not silent NO_ARCHIVES."""
+    service = WaybackService()
+
+    class FakeMalformedStream:
+        status_code = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def raise_for_status(self):
+            pass
+        def iter_bytes(self, chunk_size=65536):
+            yield b"<html><head><title>503 Service Unavailable</title></head><body>Error</body></html>"
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def stream(self, method, url, params=None):
+            return FakeMalformedStream()
+
+    with patch.object(service, "_client_context", return_value=FakeClient()):
+        with pytest.raises(WaybackSourceUnavailableError, match="non-JSON|malformed"):
+            service.query_cdx_raw({"url": "example.com"})
+
+
+def test_wayback_http_500_raises_source_unavailable():
+    """Verify that HTTP 5xx errors from Wayback CDX raise WaybackSourceUnavailableError."""
+    import httpx
+    service = WaybackService()
+
+    class Fake500Stream:
+        status_code = 500
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def raise_for_status(self):
+            request = httpx.Request("GET", "http://web.archive.org/cdx/search/cdx")
+            response = httpx.Response(500, request=request)
+            raise httpx.HTTPStatusError("500 Internal Server Error", request=request, response=response)
+        def iter_bytes(self, chunk_size=65536):
+            yield b""
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def stream(self, method, url, params=None):
+            return Fake500Stream()
+
+    with patch.object(service, "_client_context", return_value=FakeClient()):
+        with pytest.raises(WaybackSourceUnavailableError, match="HTTP 500"):
+            service.query_cdx_raw({"url": "example.com"})
+
