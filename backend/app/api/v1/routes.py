@@ -1,11 +1,15 @@
-"""API v1 route definitions for ShopShield BD."""
-
+import asyncio
 import logging
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from backend.app.config import settings
 from backend.app.schemas.health import HealthResponse, ServiceStatus
 from backend.app.schemas.analysis import AnalyzeRequest, AnalyzeResponse
+from backend.app.schemas.screenshot import ScreenshotExtractionResponse
 from backend.app.services.analyzer import PurchasePromiseAnalyzer
+from backend.app.services.screenshot_extractor import (
+    ScreenshotExtractorService,
+    ImageValidationError,
+)
 from backend.app.services.ai_extractor import (
     ConfigurationError,
     AIProviderError,
@@ -58,7 +62,7 @@ async def get_status():
     ai_status_label = "configured (unverified)" if ai_configured else "unconfigured (missing GEMINI_API_KEY)"
     return {
         "project": settings.PROJECT_NAME,
-        "phase": "Task 02 — Purchase Promise Extraction & Contradiction Detection",
+        "phase": "Task 03 — Multimodal Screenshot OCR & Purchase Promise Extraction",
         "event": "YUNet AIgnite Buildathon 2026",
         "ai_engine": {
             "model": settings.GEMINI_MODEL,
@@ -71,7 +75,7 @@ async def get_status():
             "contradiction_detection": "implemented",
             "payment_safety_advisory": "implemented",
             "buyer_questions_generator": "implemented",
-            "multimodal_screenshot_ocr": "planned (Task 03)",
+            "multimodal_screenshot_ocr": "implemented",
             "courier_parity_verification": "planned (Task 03)",
             "community_risk_signals": "planned (Task 04)",
         },
@@ -159,3 +163,106 @@ async def analyze_promises(request: AnalyzeRequest) -> AnalyzeResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An internal server error occurred while analyzing purchase promises. Technical details have been logged.",
         )
+
+
+@router.post(
+    "/extract-screenshot",
+    response_model=ScreenshotExtractionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Extract Visible Text from Commerce Screenshot via Multimodal Gemini OCR",
+    description=(
+        "Accepts an uploaded image file (PNG, JPEG, WebP, max 5 MB) representing a public advertisement "
+        "or private seller conversation. Verifies image integrity and dimensions using Pillow, strips metadata, "
+        "and extracts visible text in Bengali, English, or Banglish using Google Gemini. "
+        "Images are processed strictly in memory and are never persisted to disk."
+    ),
+    tags=["OCR"],
+)
+async def extract_screenshot(
+    file: UploadFile = File(..., description="Screenshot image file (PNG, JPEG, WebP, max 5 MB)"),
+    source_type: str = Form("advertisement", description="Source classification: 'advertisement' or 'seller_chat'"),
+) -> ScreenshotExtractionResponse:
+    """Extract visible text from an uploaded advertisement or chat screenshot using Gemini OCR."""
+    clean_source = source_type.strip().lower()
+    if clean_source not in ("advertisement", "seller_chat"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="source_type must be either 'advertisement' or 'seller_chat'.",
+        )
+
+    # Validate declared MIME type if provided
+    if file.content_type and file.content_type.lower() not in settings.ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported media type '{file.content_type}'. Allowed types: PNG, JPEG, and WebP.",
+        )
+
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        logger.error("Failed to read uploaded file stream: %s", type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not read uploaded image data.",
+        )
+
+    if not file_bytes or len(file_bytes) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded image file is empty.",
+        )
+
+    if len(file_bytes) > settings.MAX_IMAGE_SIZE_BYTES:
+        max_mb = settings.MAX_IMAGE_SIZE_BYTES // (1024 * 1024)
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Uploaded image exceeds maximum size limit of {max_mb} MB.",
+        )
+
+    service = ScreenshotExtractorService()
+
+    try:
+        # Execute CPU-bound Pillow decoding and network Gemini call asynchronously
+        result = await asyncio.to_thread(
+            service.extract_text,
+            file_bytes,
+            source_type=clean_source,
+            declared_content_type=file.content_type,
+        )
+        return result
+    except ImageValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except ConfigurationError as e:
+        logger.warning("Configuration error during screenshot extraction: %s", type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gemini API key is not configured. Please set the GEMINI_API_KEY environment variable.",
+        )
+    except AIQuotaExhaustedError:
+        logger.warning("AI provider quota exhausted during screenshot extraction.")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Gemini API quota or rate limit exceeded. Please try again later.",
+        )
+    except AITimeoutError:
+        logger.warning("AI provider timeout during screenshot extraction.")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="The AI screenshot extraction request timed out. Please try again with a clearer or smaller image.",
+        )
+    except AIProviderError:
+        logger.error("AI provider error during screenshot extraction.")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI service provider is currently unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.exception("Unexpected error during screenshot OCR extraction: %s", type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal server error occurred while extracting screenshot text. Technical details have been logged.",
+        )
+

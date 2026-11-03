@@ -14,8 +14,26 @@ import {
   Clock,
   ArrowRight,
   ShieldAlert,
+  Upload,
+  X,
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+
+interface ScreenshotState {
+  file: File | null;
+  previewUrl: string | null;
+  loading: boolean;
+  error: string | null;
+  success: boolean;
+}
+
+const initialScreenshotState: ScreenshotState = {
+  file: null,
+  previewUrl: null,
+  loading: false,
+  error: null,
+  success: false,
+};
 
 interface SingleClaim {
   claim_type: string;
@@ -134,9 +152,164 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
   const [results, setResults] = useState<AnalyzeResponse | null>(null);
   const [copiedQuestionIndex, setCopiedQuestionIndex] = useState<number | null>(null);
 
-  // Request race condition protection
+  // Screenshot upload states
+  const [adScreenshot, setAdScreenshot] = useState<ScreenshotState>(initialScreenshotState);
+  const [chatScreenshot, setChatScreenshot] = useState<ScreenshotState>(initialScreenshotState);
+
+  // Hidden file input refs
+  const adFileInputRef = useRef<HTMLInputElement | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Per-slot OCR abort controller refs
+  const adOcrAbortRef = useRef<AbortController | null>(null);
+  const chatOcrAbortRef = useRef<AbortController | null>(null);
+
+  // Request race condition protection for analyze
   const currentRequestIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleScreenshotUpload = async (
+    file: File,
+    sourceType: 'advertisement' | 'seller_chat'
+  ) => {
+    const isAd = sourceType === 'advertisement';
+    const setScreenshot = isAd ? setAdScreenshot : setChatScreenshot;
+    const abortRef = isAd ? adOcrAbortRef : chatOcrAbortRef;
+
+    // Client-side format validation
+    const validMimes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!validMimes.includes(file.type.toLowerCase())) {
+      setScreenshot((prev) => ({
+        ...prev,
+        error: 'Unsupported image format. Please upload a PNG, JPEG, or WebP screenshot.',
+        loading: false,
+      }));
+      return;
+    }
+
+    // Client-side file size limit: 5 MB
+    if (file.size > 5 * 1024 * 1024) {
+      setScreenshot((prev) => ({
+        ...prev,
+        error: 'Screenshot exceeds 5 MB size limit. Please upload a smaller image.',
+        loading: false,
+      }));
+      return;
+    }
+
+    // Cancel in-flight OCR request for this slot if any
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // Revoke previous preview URL if present
+    setScreenshot((prev) => {
+      if (prev.previewUrl) {
+        URL.revokeObjectURL(prev.previewUrl);
+      }
+      return {
+        file,
+        previewUrl: URL.createObjectURL(file),
+        loading: true,
+        error: null,
+        success: false,
+      };
+    });
+
+    // Clear previous comparison results since new input is arriving
+    setResults(null);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('source_type', sourceType);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/extract-screenshot`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 503) {
+          throw new Error(
+            errorData.detail ||
+              'Gemini API key is not configured on the backend server. Configure GEMINI_API_KEY to enable live screenshot OCR.'
+          );
+        } else if (response.status === 413) {
+          throw new Error('Screenshot exceeds 5 MB size limit.');
+        } else if (response.status === 429) {
+          throw new Error('AI OCR rate limit exceeded. Please wait a moment and try again.');
+        } else if (response.status === 504) {
+          throw new Error('Screenshot OCR request timed out. Please try with a clearer or smaller image.');
+        } else if (response.status === 502) {
+          throw new Error('The AI OCR service is currently unavailable. Please try again.');
+        } else {
+          throw new Error(errorData.detail || `OCR failed (${response.status}). Could not extract text.`);
+        }
+      }
+
+      const data = await response.json();
+      const extracted = data.extracted_text || '';
+
+      if (isAd) {
+        setAdText(extracted);
+      } else {
+        setChatText(extracted);
+      }
+
+      setScreenshot((prev) => ({
+        ...prev,
+        loading: false,
+        error: extracted ? null : 'No visible text recognized in the screenshot. You can type or paste the text directly.',
+        success: Boolean(extracted),
+      }));
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          return; // Request was aborted by user
+        }
+        setScreenshot((prev) => ({
+          ...prev,
+          loading: false,
+          error: err.message,
+          success: false,
+        }));
+      } else {
+        setScreenshot((prev) => ({
+          ...prev,
+          loading: false,
+          error: 'An unexpected error occurred during OCR extraction.',
+          success: false,
+        }));
+      }
+    }
+  };
+
+  const handleRemoveScreenshot = (sourceType: 'advertisement' | 'seller_chat') => {
+    const isAd = sourceType === 'advertisement';
+    const setScreenshot = isAd ? setAdScreenshot : setChatScreenshot;
+    const abortRef = isAd ? adOcrAbortRef : chatOcrAbortRef;
+    const fileInputRef = isAd ? adFileInputRef : chatFileInputRef;
+
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    setScreenshot((prev) => {
+      if (prev.previewUrl) {
+        URL.revokeObjectURL(prev.previewUrl);
+      }
+      return initialScreenshotState;
+    });
+  };
 
   const handleAdTextChange = (value: string) => {
     if (abortControllerRef.current) {
@@ -160,6 +333,8 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+    handleRemoveScreenshot('advertisement');
+    handleRemoveScreenshot('seller_chat');
     setAdText(SAMPLE_SCENARIOS[index].ad);
     setChatText(SAMPLE_SCENARIOS[index].chat);
     setResults(null);
@@ -319,6 +494,8 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
             <button
               onClick={() => {
                 if (abortControllerRef.current) abortControllerRef.current.abort();
+                handleRemoveScreenshot('advertisement');
+                handleRemoveScreenshot('seller_chat');
                 setAdText('');
                 setChatText('');
                 setResults(null);
@@ -331,9 +508,26 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
           </div>
         </div>
 
+        {/* Privacy & Screenshot Safety Notice */}
+        <div className="mb-6 p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300 text-xs flex items-start space-x-3 max-w-5xl mx-auto shadow-sm">
+          <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-semibold text-slate-200 block text-xs sm:text-sm">
+              🔒 Privacy & Screenshot Safety Advisory
+            </span>
+            <p className="text-slate-400 leading-relaxed text-[11px] sm:text-xs">
+              Screenshots are transmitted securely to Google Gemini OCR for in-memory optical character recognition and are{' '}
+              <strong className="text-emerald-400 font-medium">never permanently stored or logged</strong> on our servers.
+              For your safety, we strongly recommend cropping or concealing personal phone numbers, physical addresses,
+              and private bKash/Nagad wallet numbers before uploading. Extracted text remains 100% editable so you can
+              review and correct any details before running the promise audit.
+            </p>
+          </div>
+        </div>
+
         {/* Dual Input Form */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Advertisement Input */}
+          {/* Advertisement Input Card */}
           <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -343,11 +537,110 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
                 </label>
                 <span className="text-[11px] font-mono text-slate-400">{adText.length} characters</span>
               </div>
+
+              {/* Advertisement Screenshot Upload Control */}
+              <div className="mb-3">
+                {!adScreenshot.file ? (
+                  <div
+                    onClick={() => adFileInputRef.current?.click()}
+                    className="group relative border border-dashed border-slate-700/80 hover:border-emerald-500/60 rounded-xl p-3 bg-slate-950/40 hover:bg-slate-950/70 transition-all cursor-pointer flex items-center justify-between"
+                  >
+                    <input
+                      ref={adFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleScreenshotUpload(file, 'advertisement');
+                      }}
+                    />
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform shrink-0">
+                        <Upload className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-200 group-hover:text-emerald-400 transition-colors">
+                          Upload Advertisement Screenshot
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          PNG, JPEG, WebP (Max 5 MB) • Auto-extracts via Gemini OCR
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-medium text-emerald-400/90 group-hover:text-emerald-300 bg-emerald-950/40 px-2 py-1 rounded border border-emerald-900/50 shrink-0 ml-2">
+                      Browse Image
+                    </span>
+                  </div>
+                ) : (
+                  <div className="border border-slate-800 rounded-xl p-2.5 bg-slate-950/60 flex items-center justify-between">
+                    <input
+                      ref={adFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleScreenshotUpload(file, 'advertisement');
+                      }}
+                    />
+                    <div className="flex items-center space-x-3 min-w-0">
+                      {adScreenshot.previewUrl && (
+                        <img
+                          src={adScreenshot.previewUrl}
+                          alt="Advertisement screenshot"
+                          className="w-10 h-10 object-cover rounded-lg border border-slate-700/80 shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium text-slate-200 truncate flex items-center space-x-1.5">
+                          <span className="truncate">{adScreenshot.file.name}</span>
+                          <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                            ({(adScreenshot.file.size / (1024 * 1024)).toFixed(1)} MB)
+                          </span>
+                        </div>
+                        {adScreenshot.loading ? (
+                          <div className="text-[11px] text-amber-400 flex items-center space-x-1 pt-0.5">
+                            <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+                            <span>Extracting visible text via Gemini OCR...</span>
+                          </div>
+                        ) : adScreenshot.error ? (
+                          <div className="text-[11px] text-rose-400 truncate pt-0.5">{adScreenshot.error}</div>
+                        ) : (
+                          <div className="text-[11px] text-emerald-400 flex items-center space-x-1 pt-0.5">
+                            <Check className="w-3 h-3 shrink-0" />
+                            <span>OCR Extracted • Review and correct text below</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => adFileInputRef.current?.click()}
+                        disabled={adScreenshot.loading}
+                        className="text-[11px] px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition-colors"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveScreenshot('advertisement')}
+                        className="text-[11px] p-1 rounded bg-slate-900 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-800 transition-colors"
+                        title="Remove Screenshot"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <textarea
                 value={adText}
                 onChange={(e) => handleAdTextChange(e.target.value)}
-                placeholder="Paste the seller's Facebook page caption, post text, or website product description..."
-                rows={9}
+                placeholder="Paste the seller's Facebook page caption, post text, or upload an ad screenshot above..."
+                rows={8}
                 className="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm text-slate-100 placeholder-slate-600 outline-none transition-all font-sans leading-relaxed resize-y"
               />
             </div>
@@ -356,7 +649,7 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
             </p>
           </div>
 
-          {/* Seller Chat Input */}
+          {/* Seller Chat Input Card */}
           <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -366,11 +659,110 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
                 </label>
                 <span className="text-[11px] font-mono text-slate-400">{chatText.length} characters</span>
               </div>
+
+              {/* Seller Chat Screenshot Upload Control */}
+              <div className="mb-3">
+                {!chatScreenshot.file ? (
+                  <div
+                    onClick={() => chatFileInputRef.current?.click()}
+                    className="group relative border border-dashed border-slate-700/80 hover:border-teal-500/60 rounded-xl p-3 bg-slate-950/40 hover:bg-slate-950/70 transition-all cursor-pointer flex items-center justify-between"
+                  >
+                    <input
+                      ref={chatFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleScreenshotUpload(file, 'seller_chat');
+                      }}
+                    />
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 group-hover:scale-105 transition-transform shrink-0">
+                        <Upload className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-200 group-hover:text-teal-400 transition-colors">
+                          Upload Chat / Messenger Screenshot
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          PNG, JPEG, WebP (Max 5 MB) • Auto-extracts via Gemini OCR
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-medium text-teal-400/90 group-hover:text-teal-300 bg-teal-950/40 px-2 py-1 rounded border border-teal-900/50 shrink-0 ml-2">
+                      Browse Image
+                    </span>
+                  </div>
+                ) : (
+                  <div className="border border-slate-800 rounded-xl p-2.5 bg-slate-950/60 flex items-center justify-between">
+                    <input
+                      ref={chatFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleScreenshotUpload(file, 'seller_chat');
+                      }}
+                    />
+                    <div className="flex items-center space-x-3 min-w-0">
+                      {chatScreenshot.previewUrl && (
+                        <img
+                          src={chatScreenshot.previewUrl}
+                          alt="Conversation screenshot"
+                          className="w-10 h-10 object-cover rounded-lg border border-slate-700/80 shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium text-slate-200 truncate flex items-center space-x-1.5">
+                          <span className="truncate">{chatScreenshot.file.name}</span>
+                          <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                            ({(chatScreenshot.file.size / (1024 * 1024)).toFixed(1)} MB)
+                          </span>
+                        </div>
+                        {chatScreenshot.loading ? (
+                          <div className="text-[11px] text-amber-400 flex items-center space-x-1 pt-0.5">
+                            <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+                            <span>Extracting visible text via Gemini OCR...</span>
+                          </div>
+                        ) : chatScreenshot.error ? (
+                          <div className="text-[11px] text-rose-400 truncate pt-0.5">{chatScreenshot.error}</div>
+                        ) : (
+                          <div className="text-[11px] text-teal-400 flex items-center space-x-1 pt-0.5">
+                            <Check className="w-3 h-3 shrink-0" />
+                            <span>OCR Extracted • Review and correct text below</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => chatFileInputRef.current?.click()}
+                        disabled={chatScreenshot.loading}
+                        className="text-[11px] px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition-colors"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveScreenshot('seller_chat')}
+                        className="text-[11px] p-1 rounded bg-slate-900 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-800 transition-colors"
+                        title="Remove Screenshot"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <textarea
                 value={chatText}
                 onChange={(e) => handleChatTextChange(e.target.value)}
-                placeholder="Paste the direct conversation from Facebook Messenger, WhatsApp, or SMS..."
-                rows={9}
+                placeholder="Paste the direct conversation from Messenger, WhatsApp, or upload a chat screenshot above..."
+                rows={8}
                 className="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-sm text-slate-100 placeholder-slate-600 outline-none transition-all font-sans leading-relaxed resize-y"
               />
             </div>

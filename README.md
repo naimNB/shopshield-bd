@@ -44,8 +44,9 @@
 
 To ensure transparent engineering and buildathon integrity, features are explicitly divided into implemented, experimental, and planned capabilities:
 
-### ✅ Implemented Features (Verified in Task 02 & Hardened)
-- **Structured AI Extraction Service:** Uses the official `google-genai` Python SDK (`gemini-2.5-flash`) with strict Pydantic v2 schema validation. Supports **Bangla**, **English**, and **Banglish**.
+### ✅ Implemented Features (Verified in Task 02 & Task 03)
+- **Multimodal Screenshot OCR (Task 03):** Direct screenshot upload and OCR text extraction (`POST /api/v1/extract-screenshot`). In-memory image decoding and sanitization with Pillow, stripping EXIF/metadata. Calls Google Gemini multimodal vision to transcribe visible Bengali, English, and Banglish text from Facebook posts, Marketplace listings, and Messenger/WhatsApp chats. Screenshots are processed strictly in memory and are never persisted to disk. Extracted text automatically populates the textareas and remains 100% user-editable before contradiction analysis.
+- **Structured AI Extraction Service:** Uses the official `google-genai` Python SDK (`gemini-3.5-flash`) with strict Pydantic v2 schema validation. Supports **Bangla**, **English**, and **Banglish**.
 - **Evidence Quote Verification & Nullification:** Validates that every extracted evidence quote strictly appears in the original text (accounting for unicode whitespace and Bengali punctuation). Hallucinated or unverified quotes are rejected, stripped from active values to prevent false contradictions, and surfaced to users as discarded claims.
 - **Deterministic Contradiction Detection:** Strictly compares prices, Cash on Delivery availability, advance payments, return policies, and warranties. Requires verified evidence from both sides to issue a `CONTRADICTION`; otherwise marks ambiguous comparisons as `NEEDS_REVIEW`.
 - **Payment Safety Rules Engine:** Evaluates payment risk levels:
@@ -56,19 +57,17 @@ To ensure transparent engineering and buildathon integrity, features are explici
   - Highlights omitted return/warranty terms.
 - **Buyer Verification Question Generator:** Generates actionable, copy-pasteable verification questions in clear Bangla (ক্রেতার জন্য যাচাইকারী প্রশ্নমালা).
 - **Backend Reliability & Error Masking:** Configured request timeouts (30s) via `google-genai` `HttpOptions`, explicit 429 quota exhaustion and 504 gateway timeout handlers, and generic user-safe error masking for 500s that logs technical details internally without leaking customer text or API credentials.
-- **Frontend Analysis Interface:** Dual-input responsive interface with sample scenarios, active input cancellation via `AbortController`, stale request protection, clear disclaimer that sample scenarios are simulations, and live backend health badge.
-- **Automated Testing:** 25 unit, integration, and regression tests passing in Pytest.
+- **Frontend Analysis Interface:** Dual-input responsive interface with sample scenarios, dual screenshot upload controls with image previews and replacement, active input cancellation via `AbortController`, stale request protection, clear disclaimer that sample scenarios are simulations, and live backend health badge.
+- **Automated Testing:** 41 unit, integration, and regression tests passing in Pytest across analysis, health, screenshot OCR, and Vercel serverless entrypoints.
 
 ### 🔍 Live AI Execution Status
-- **With `GEMINI_API_KEY` configured:** The backend connects to Google Gemini via `google-genai` SDK and performs end-to-end extraction and promise comparison on live user requests.
-- **Without `GEMINI_API_KEY` (Unconfigured mode):** The backend reports `"unconfigured (missing GEMINI_API_KEY)"` on `/health` (never claiming operational status without verification) and returns clean HTTP 503 guidance on `/api/v1/analyze`. All 25 automated regression tests execute offline without requiring an active key.
+- **With `GEMINI_API_KEY` configured:** The backend connects to Google Gemini via `google-genai` SDK and performs end-to-end multimodal OCR extraction, structured claim extraction, and promise comparison on live user requests.
+- **Without `GEMINI_API_KEY` (Unconfigured mode):** The backend reports `"unconfigured (missing GEMINI_API_KEY)"` on `/health` (never claiming operational status without verification) and returns clean HTTP 503 guidance on `/api/v1/analyze` and `/api/v1/extract-screenshot`. All automated regression tests execute offline without requiring an active key.
 
 ### 🧪 Experimental Features
 - Constrained semantic inference for complex or multi-clause return policies.
-- Screenshot upload extension point in API request schemas (`image_urls`).
 
 ### 🗺️ Planned Roadmap (Future Phases — Unimplemented)
-- **Multimodal Screenshot OCR (Task 03):** Direct image upload and optical document extraction for Messenger and WhatsApp screenshots.
 - **Courier Logistics Parity (Task 03):** Cross-referencing consignment codes with Steadfast, Pathao, and RedX tracking gateways to detect spoofed courier slips.
 - **Digital Promise Pass (Task 03):** Downloadable PDF / QR-verified token summarizing agreed commitments.
 - **Community Risk Signals (Task 04):** Crowdsourced scam report registry for repeat fraudulent numbers and fake Facebook pages.
@@ -141,10 +140,10 @@ shopshield-bd/
 | Layer | Technologies |
 |---|---|
 | **Frontend** | React 19, TypeScript 5, Vite 6, Tailwind CSS 3.4, Lucide React |
-| **Backend** | Python 3.12+, FastAPI, Pydantic v2, Uvicorn (ASGI) |
-| **AI / Multimodal** | Official `google-genai` Python SDK (`gemini-3.5-flash`) |
+| **Backend** | Python 3.12+, FastAPI, Pydantic v2, Pillow 10+, python-multipart, Uvicorn (ASGI) |
+| **AI / Multimodal** | Official `google-genai` Python SDK (`gemini-3.5-flash` vision & text OCR) |
 | **Deployment** | Vercel (Frontend SPA + Python Serverless Function) |
-| **Testing** | Pytest, Starlette TestClient, ESLint 9, TypeScript compiler (`tsc`) |
+| **Testing** | Pytest (41 automated tests), Starlette TestClient, ESLint 9, TypeScript (`tsc`) |
 
 ---
 

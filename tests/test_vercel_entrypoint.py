@@ -43,3 +43,13 @@ def test_vercel_entrypoint_analyze_validation():
         # Empty payload should fail validation with 422
         response = client.post("/api/v1/analyze", json={})
         assert response.status_code == 422
+
+
+def test_vercel_entrypoint_extract_screenshot_validation():
+    """Verify both entry points route and validate POST /api/v1/extract-screenshot."""
+    for entry_app in [root_app, backend_app]:
+        client = TestClient(entry_app)
+        # Request missing required multipart file should fail with 422
+        response = client.post("/api/v1/extract-screenshot")
+        assert response.status_code == 422
+

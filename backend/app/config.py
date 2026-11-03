@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-3.5-flash"
     AI_REQUEST_TIMEOUT_SECONDS: int = 30
     MAX_INPUT_TEXT_LENGTH: int = 15000
+    MAX_IMAGE_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB
+    ALLOWED_IMAGE_TYPES: List[str] = ["image/png", "image/jpeg", "image/webp", "image/jpg"]
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

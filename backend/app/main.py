@@ -72,6 +72,7 @@ async def root_index():
         "health": "/health",
         "api_v1_health": f"{settings.API_V1_PREFIX}/health",
         "api_v1_analyze": f"{settings.API_V1_PREFIX}/analyze",
+        "api_v1_extract_screenshot": f"{settings.API_V1_PREFIX}/extract-screenshot",
     }
 
 
