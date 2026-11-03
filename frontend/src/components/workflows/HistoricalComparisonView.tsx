@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Clock,
   Sparkles,
@@ -46,12 +46,30 @@ export const HistoricalComparisonView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompareHistoryResponse | null>(null);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleCompare = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!websiteUrl.trim()) {
       setError('অনুগ্রহ করে একটি ওয়েবসাইটের লিঙ্ক দিন (যেমন: https://daraz.com.bd)।');
       return;
     }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const currentId = ++requestIdRef.current;
 
     setLoading(true);
     setError(null);
@@ -60,17 +78,29 @@ export const HistoricalComparisonView: React.FC = () => {
       const data = await api.compareHistoricalPolicy({
         website_url: websiteUrl.trim(),
         page_path: pagePath.trim() || undefined,
-      });
-      setResult(data);
+      }, { signal: controller.signal });
+      if (currentId === requestIdRef.current) {
+        setResult(data);
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'ঐতিহাসিক তুলনা সম্পন্ন করা সম্ভব হয়নি।';
-      setError(msg);
+      if (currentId === requestIdRef.current) {
+        if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
+          return;
+        }
+        const msg = err instanceof Error ? err.message : 'ঐতিহাসিক তুলনা সম্পন্ন করা সম্ভব হয়নি।';
+        setError(msg);
+      }
     } finally {
-      setLoading(false);
+      if (currentId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleReset = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setWebsiteUrl('');
     setPagePath('');
     setResult(null);
@@ -78,6 +108,9 @@ export const HistoricalComparisonView: React.FC = () => {
   };
 
   const loadSample = (sample: typeof SAMPLE_COMPARISONS[0]) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setWebsiteUrl(sample.url);
     setPagePath(sample.path);
     setResult(null);

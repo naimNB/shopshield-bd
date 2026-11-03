@@ -93,6 +93,25 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
   const currentRequestIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  React.useEffect(() => {
+    const adRef = adOcrAbortRef;
+    const chatRef = chatOcrAbortRef;
+    const analyzeRef = abortControllerRef;
+    return () => {
+      adRef.current?.abort();
+      chatRef.current?.abort();
+      analyzeRef.current?.abort();
+      setAdScreenshot((prev) => {
+        if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return prev;
+      });
+      setChatScreenshot((prev) => {
+        if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return prev;
+      });
+    };
+  }, []);
+
   const handleScreenshotUpload = async (
     file: File,
     sourceType: 'advertisement' | 'seller_chat'
@@ -147,7 +166,7 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
     setError(null);
 
     try {
-      const data = await api.extractScreenshot(file);
+      const data = await api.extractScreenshot(file, { signal: controller.signal });
       const extracted = data.extracted_text || '';
 
       if (isAd) {
@@ -263,7 +282,7 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
       const data = await api.analyzeAdVsChat({
         advertisement_text: adClean,
         seller_chat_text: chatClean,
-      });
+      }, { signal: controller.signal });
 
       if (requestId === currentRequestIdRef.current) {
         setResults(data);

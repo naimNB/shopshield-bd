@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   History,
   Globe,
@@ -46,8 +46,23 @@ export const SellerHistoryIntelligence: React.FC = () => {
   const [report, setReport] = useState<SellerHistoryReportResponse | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
 
-  // Hidden file input ref
+  // Hidden file input ref and abort controllers
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const transparencyAbortRef = useRef<AbortController | null>(null);
+  const websiteAbortRef = useRef<AbortController | null>(null);
+  const reportAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (transparencyAbortRef.current) transparencyAbortRef.current.abort();
+      if (websiteAbortRef.current) websiteAbortRef.current.abort();
+      if (reportAbortRef.current) reportAbortRef.current.abort();
+      setTransparencyPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, []);
 
   // Handle File Selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,12 +79,20 @@ export const SellerHistoryIntelligence: React.FC = () => {
       return;
     }
 
+    if (transparencyAbortRef.current) {
+      transparencyAbortRef.current.abort();
+    }
+
     setTransparencyFile(file);
+    if (transparencyPreview) URL.revokeObjectURL(transparencyPreview);
     setTransparencyPreview(URL.createObjectURL(file));
     setTransparencyError(null);
   };
 
   const handleRemoveImage = () => {
+    if (transparencyAbortRef.current) {
+      transparencyAbortRef.current.abort();
+    }
     setTransparencyFile(null);
     if (transparencyPreview) {
       URL.revokeObjectURL(transparencyPreview);
@@ -84,11 +107,17 @@ export const SellerHistoryIntelligence: React.FC = () => {
   const handleAnalyzeTransparency = async () => {
     if (!transparencyFile) return;
 
+    if (transparencyAbortRef.current) {
+      transparencyAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    transparencyAbortRef.current = controller;
+
     setTransparencyLoading(true);
     setTransparencyError(null);
 
     try {
-      const json = await api.analyzePageTransparency(transparencyFile);
+      const json = await api.analyzePageTransparency(transparencyFile, { signal: controller.signal });
       setTransparencyData(json.transparency_data);
       setEditPageName(json.transparency_data.page_name || '');
       setEditCreationDate(json.transparency_data.page_creation_date || '');
@@ -96,6 +125,9 @@ export const SellerHistoryIntelligence: React.FC = () => {
       // Trigger consolidated report update
       await fetchConsolidatedReport(json.transparency_data, websiteUrl);
     } catch (err: unknown) {
+      if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'স্ক্রিনশট বিশ্লেষণ ব্যর্থ হয়েছে।';
       setTransparencyError(msg);
     } finally {
@@ -111,16 +143,25 @@ export const SellerHistoryIntelligence: React.FC = () => {
       return;
     }
 
+    if (websiteAbortRef.current) {
+      websiteAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    websiteAbortRef.current = controller;
+
     setWebsiteLoading(true);
     setWebsiteError(null);
 
     try {
-      const json = await api.fetchWebsiteHistory(websiteUrl.trim());
+      const json = await api.fetchWebsiteHistory(websiteUrl.trim(), { signal: controller.signal });
       setWebsiteData(json.website_data);
 
       // Trigger consolidated report update
       await fetchConsolidatedReport(transparencyData, websiteUrl.trim());
     } catch (err: unknown) {
+      if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'ওয়েবসাইট আর্কাইভ অনুসন্ধান ব্যর্থ হয়েছে।';
       setWebsiteError(msg);
     } finally {
@@ -133,14 +174,23 @@ export const SellerHistoryIntelligence: React.FC = () => {
     tData: PageTransparencyData | null,
     wUrl: string
   ) => {
+    if (reportAbortRef.current) {
+      reportAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    reportAbortRef.current = controller;
+
     setReportLoading(true);
     try {
       const json = await api.fetchSellerHistoryReport({
         transparency_data: tData,
         website_url: wUrl || null,
-      });
+      }, { signal: controller.signal });
       setReport(json);
-    } catch (err) {
+    } catch (err: unknown) {
+      if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
+        return;
+      }
       console.error('Error fetching consolidated report:', err);
     } finally {
       setReportLoading(false);

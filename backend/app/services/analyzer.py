@@ -1,5 +1,4 @@
-"""Analyzer orchestrator service that coordinates AI extraction, comparison, and rules."""
-
+import concurrent.futures
 import time
 from typing import Optional
 from backend.app.config import settings
@@ -27,15 +26,20 @@ class PurchasePromiseAnalyzer:
         """Execute full comparison and safety analysis between advertisement and chat."""
         start_time = time.time()
 
-        # 1. Extract claims from advertisement and conversation
-        ad_claims = self.extractor.extract_claims(
-            text=request.advertisement_text,
-            source_type="advertisement",
-        )
-        chat_claims = self.extractor.extract_claims(
-            text=request.seller_chat_text,
-            source_type="seller_chat",
-        )
+        # 1. Extract claims concurrently from advertisement and conversation
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            ad_future = executor.submit(
+                self.extractor.extract_claims,
+                text=request.advertisement_text,
+                source_type="advertisement",
+            )
+            chat_future = executor.submit(
+                self.extractor.extract_claims,
+                text=request.seller_chat_text,
+                source_type="seller_chat",
+            )
+            ad_claims = ad_future.result()
+            chat_claims = chat_future.result()
 
         # 2. Compare promises across critical categories
         comparison_results = self.comparer.compare(ad_claims, chat_claims)

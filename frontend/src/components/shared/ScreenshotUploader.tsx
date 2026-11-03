@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Image as ImageIcon, Sparkles, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
 
@@ -24,6 +24,20 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
   const [isApplied, setIsApplied] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, []);
 
   const handleFileChange = (selectedFile: File) => {
     const validMimes = ['image/png', 'image/jpeg', 'image/webp'];
@@ -34,6 +48,10 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
     if (selectedFile.size > 5 * 1024 * 1024) {
       setError('ছবির সাইজ ৫ মেগাবাইটের কম হতে হবে। অনুগ্রহ করে ছোট ছবি আপলোড করুন।');
       return;
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
 
     setFile(selectedFile);
@@ -51,23 +69,40 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
   };
 
   const performOcr = async (imageFile: File) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const currentId = ++requestIdRef.current;
+
     setLoading(true);
     setError(null);
     try {
-      const result = await api.extractScreenshot(imageFile);
+      const result = await api.extractScreenshot(imageFile, { signal: controller.signal });
+      if (currentId !== requestIdRef.current) return;
       setExtractedSnippet(result.extracted_text);
       setEditableText(result.extracted_text);
       onExtractedText(result.extracted_text);
       setIsApplied(true);
     } catch (err: unknown) {
+      if (currentId !== requestIdRef.current) return;
+      if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'স্ক্রিনশট থেকে টেক্সট এক্সট্রাকশন ব্যর্থ হয়েছে।';
       setError(msg);
     } finally {
-      setLoading(false);
+      if (currentId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleClear = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setFile(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);

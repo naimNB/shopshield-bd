@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Sparkles,
   FileText,
@@ -42,12 +42,30 @@ export const AdQuickCheckView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AdAnalysisResponse | null>(null);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleAnalyze = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!adText.trim() || adText.trim().length < 5) {
       setError('অনুগ্রহ করে বিজ্ঞাপনের টেক্সট লিখুন অথবা স্ক্রিনশট আপলোড করুন (কমপক্ষে ৫ অক্ষর)।');
       return;
     }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const currentId = ++requestIdRef.current;
 
     setLoading(true);
     setError(null);
@@ -56,17 +74,29 @@ export const AdQuickCheckView: React.FC = () => {
       const data = await api.analyzeAd({
         advertisement_text: adText.trim(),
         product_context: productContext.trim() || undefined,
-      });
-      setResult(data);
+      }, { signal: controller.signal });
+      if (currentId === requestIdRef.current) {
+        setResult(data);
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'বিজ্ঞাপন বিশ্লেষণ সম্পন্ন করা যায়নি।';
-      setError(msg);
+      if (currentId === requestIdRef.current) {
+        if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
+          return;
+        }
+        const msg = err instanceof Error ? err.message : 'বিজ্ঞাপন বিশ্লেষণ সম্পন্ন করা যায়নি।';
+        setError(msg);
+      }
     } finally {
-      setLoading(false);
+      if (currentId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleReset = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setAdText('');
     setProductContext('');
     setResult(null);
@@ -74,6 +104,9 @@ export const AdQuickCheckView: React.FC = () => {
   };
 
   const loadSample = (sample: typeof SAMPLE_ADS[0]) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setAdText(sample.text);
     setProductContext(sample.product);
     setResult(null);

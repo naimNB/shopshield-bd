@@ -86,6 +86,31 @@ export const BuyerVerificationHub: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
 
+  const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    let targetIndex = -1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      targetIndex = (index + 1) % WORKFLOWS.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      targetIndex = (index - 1 + WORKFLOWS.length) % WORKFLOWS.length;
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      targetIndex = 0;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      targetIndex = WORKFLOWS.length - 1;
+    }
+
+    if (targetIndex !== -1) {
+      const nextTab = WORKFLOWS[targetIndex];
+      setActiveTab(nextTab.id);
+      window.location.hash = nextTab.id;
+      const el = document.getElementById(`tab-${nextTab.id}`);
+      el?.focus();
+    }
+  };
+
   return (
     <section id="analyzer" className="py-10 sm:py-14 bg-[#070c18] border-t border-slate-800/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
@@ -109,7 +134,7 @@ export const BuyerVerificationHub: React.FC = () => {
           aria-label="যাচাইকরণ পদ্ধতির তালিকা"
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 p-1.5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-md"
         >
-          {WORKFLOWS.map((tab) => {
+          {WORKFLOWS.map((tab, idx) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 
@@ -125,6 +150,7 @@ export const BuyerVerificationHub: React.FC = () => {
                   setActiveTab(tab.id);
                   window.location.hash = tab.id;
                 }}
+                onKeyDown={(e) => handleTabKeyDown(e, idx)}
                 className={`relative p-3.5 sm:p-4 rounded-xl text-left transition-all duration-200 flex flex-col justify-between focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 min-h-[52px] ${
                   isActive
                     ? 'bg-slate-800/90 border-2 border-teal-500/60 shadow-md shadow-teal-950/40 text-white'

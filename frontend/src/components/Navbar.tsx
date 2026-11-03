@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, ExternalLink, Activity, Sparkles, Menu, X } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
@@ -11,6 +11,7 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' })
 export const Navbar: React.FC = () => {
   const [backendStatus, setBackendStatus] = useState<'checking' | 'healthy' | 'offline'>('checking');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -32,14 +33,17 @@ export const Navbar: React.FC = () => {
     };
   }, []);
 
-  // Close menu on Escape key press
+  // Close menu on Escape key press and restore focus to menu button
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsMenuOpen(false);
+      if (e.key === 'Escape' && isMenuOpen) {
+        setIsMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isMenuOpen]);
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-[#070c18]/90 border-b border-slate-800/80 transition-colors">
@@ -164,6 +168,7 @@ export const Navbar: React.FC = () => {
           {/* Mobile menu button */}
           <div className="lg:hidden flex items-center space-x-2">
             <button
+              ref={menuButtonRef}
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-expanded={isMenuOpen}
