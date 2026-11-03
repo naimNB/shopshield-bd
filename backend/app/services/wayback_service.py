@@ -2,11 +2,13 @@
 
 Fetches verifiable public historical metadata via the official Wayback CDX API.
 Enforces strict SSRF protection, timeouts, and payload limits.
+Accurately queries independent earliest and latest captures using documented CDX sorting.
+Maintains clear separation between historical sample captures and total capture volume.
 Adheres strictly to the rule that an archive capture is NOT proof of domain registration
 or company founding dates.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 import json
 import logging
 from typing import List, Optional, Tuple
@@ -47,17 +49,45 @@ class WaybackRateLimitError(WaybackServiceError):
     pass
 
 
-def format_wayback_timestamp(ts: str) -> Tuple[str, str]:
-    """Convert 14-digit Wayback timestamp (YYYYMMDDhhmmss) to (formatted_date, year).
+def validate_and_format_timestamp(ts: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    """Validate 14-digit Wayback timestamp (YYYYMMDDhhmmss) and return (is_valid, formatted_date, year).
 
-    Example: '20241104183951' -> ('2024-11-04', '2024')
+    Ensures the timestamp is composed of digits, has valid date bounds, and is not in the future.
     """
-    if len(ts) >= 8:
-        year = ts[:4]
-        month = ts[4:6]
-        day = ts[6:8]
-        return f"{year}-{month}-{day}", year
-    return ts, ts[:4] if len(ts) >= 4 else "unknown"
+    if not ts or not ts.isdigit() or len(ts) < 8:
+        return False, None, None
+
+    year_str = ts[:4]
+    month_str = ts[4:6]
+    day_str = ts[6:8]
+
+    try:
+        year = int(year_str)
+        month = int(month_str)
+        day = int(day_str)
+
+        # Internet Archive was founded in 1996
+        current_year = datetime.now(timezone.utc).year
+        if year < 1996 or year > current_year + 1:
+            return False, None, None
+
+        if not (1 <= month <= 12):
+            return False, None, None
+
+        if not (1 <= day <= 31):
+            return False, None, None
+
+        # Verify parsed calendar date
+        parsed_date = date(year, month, day)
+        today = datetime.now(timezone.utc).date()
+        if parsed_date > today:
+            # Timestamp indicates future date beyond current observation
+            return False, None, None
+
+        formatted_date = f"{year_str}-{month_str}-{day_str}"
+        return True, formatted_date, year_str
+    except ValueError:
+        return False, None, None
 
 
 def make_snapshot_url(timestamp: str, original_url: str) -> str:
@@ -80,22 +110,14 @@ class WaybackService:
                 "User-Agent": "ShopShieldBD/1.0 (Digital Commerce Safety Research; https://shopshield-bd.vercel.app)",
                 "Accept": "application/json",
             },
-            follow_redirects=False,  # Prevent following any redirects from archive endpoint
+            follow_redirects=False,
         )
 
-    def query_cdx_api(self, domain_or_url: str) -> List[List[str]]:
-        """Query Wayback CDX API for snapshots with status 200.
+    def query_cdx_raw(self, params: dict) -> List[List[str]]:
+        """Execute a single query against Wayback CDX API.
 
         Returns list of rows, where row 0 is header ['timestamp', 'original', 'statuscode'].
         """
-        params = {
-            "url": domain_or_url,
-            "output": "json",
-            "fl": "timestamp,original,statuscode",
-            "filter": "statuscode:200",
-            "limit": "100",
-        }
-
         client = self.get_client()
         try:
             response = client.get(
@@ -103,7 +125,7 @@ class WaybackService:
                 params=params,
             )
         except httpx.TimeoutException as e:
-            logger.warning("Wayback CDX API timed out for query '%s'", domain_or_url)
+            logger.warning("Wayback CDX API timed out for params %s", params)
             raise WaybackTimeoutError("Internet Archive Wayback Machine API timed out.") from e
         except httpx.RequestError as e:
             logger.warning("Network error contacting Wayback CDX API: %s", type(e).__name__)
@@ -114,7 +136,7 @@ class WaybackService:
             raise WaybackRateLimitError("Internet Archive rate limit reached. Please try again shortly.")
 
         if response.status_code != 200:
-            logger.info("Wayback CDX API returned status %d for '%s'", response.status_code, domain_or_url)
+            logger.info("Wayback CDX API returned status %d for query %s", response.status_code, params.get("url"))
             return []
 
         content = response.content
@@ -131,70 +153,131 @@ class WaybackService:
             logger.error("Failed to parse Wayback CDX JSON: %s", e)
             return []
 
-    def fetch_website_history(self, raw_url: str) -> WebsiteHistoryResponse:
-        """Analyze historical website archive coverage safely.
+    def get_single_snapshot(self, domain: str, sort_reverse: bool = False) -> Optional[WebsiteArchiveSnapshot]:
+        """Query for a single capture (earliest if sort_reverse=False, latest if sort_reverse=True)."""
+        params = {
+            "url": domain,
+            "output": "json",
+            "fl": "timestamp,original,statuscode",
+            "filter": "statuscode:200",
+            "limit": "1",
+        }
+        if sort_reverse:
+            params["sort"] = "reverse"
 
-        Args:
-            raw_url: Website URL to investigate.
+        rows = self.query_cdx_raw(params)
+        if len(rows) > 1:
+            row = rows[1]
+            if len(row) >= 2:
+                ts = row[0]
+                orig = row[1]
+                status_code = row[2] if len(row) > 2 else "200"
+                is_valid, fmt_date, _ = validate_and_format_timestamp(ts)
+                if is_valid and fmt_date:
+                    return WebsiteArchiveSnapshot(
+                        timestamp=ts,
+                        formatted_date=fmt_date,
+                        snapshot_url=make_snapshot_url(ts, orig),
+                        status_code=status_code,
+                    )
+        return None
 
-        Returns:
-            WebsiteHistoryResponse containing verifiable archive data, findings, and buyer questions.
-        """
-        normalized_url, clean_hostname = validate_and_sanitize_url(raw_url)
-        now_iso = datetime.now(timezone.utc).isoformat()
+    def get_sample_snapshots(self, domain: str, max_samples: int = 15) -> List[WebsiteArchiveSnapshot]:
+        """Query for distributed sample snapshots across the domain's historical presence."""
+        # First try yearly collapse
+        params = {
+            "url": domain,
+            "output": "json",
+            "fl": "timestamp,original,statuscode",
+            "filter": "statuscode:200",
+            "collapse": "timestamp:4",
+            "limit": str(max_samples),
+        }
+        rows = self.query_cdx_raw(params)
 
-        # Query CDX for the clean hostname/domain
-        raw_rows = self.query_cdx_api(clean_hostname)
+        # If yearly collapse yielded <= 2 snapshots, try monthly collapse to give richer sample
+        if len(rows) <= 3:
+            params["collapse"] = "timestamp:6"
+            rows = self.query_cdx_raw(params)
 
-        # CDX returns [] or [header, row1, row2, ...]
-        records: List[WebsiteArchiveSnapshot] = []
-        if len(raw_rows) > 1:
-            # First row is header
-            data_rows = raw_rows[1:]
-            for row in data_rows:
+        snapshots: List[WebsiteArchiveSnapshot] = []
+        if len(rows) > 1:
+            for row in rows[1:]:
                 if len(row) >= 2:
                     ts = row[0]
                     orig = row[1]
                     status_code = row[2] if len(row) > 2 else "200"
-                    fmt_date, _ = format_wayback_timestamp(ts)
-                    records.append(
-                        WebsiteArchiveSnapshot(
-                            timestamp=ts,
-                            formatted_date=fmt_date,
-                            snapshot_url=make_snapshot_url(ts, orig),
-                            status_code=status_code,
+                    is_valid, fmt_date, _ = validate_and_format_timestamp(ts)
+                    if is_valid and fmt_date:
+                        snapshots.append(
+                            WebsiteArchiveSnapshot(
+                                timestamp=ts,
+                                formatted_date=fmt_date,
+                                snapshot_url=make_snapshot_url(ts, orig),
+                                status_code=status_code,
+                            )
                         )
-                    )
+        return snapshots
 
-        total_observed = len(records)
-        archive_available = total_observed > 0
+    def fetch_website_history(self, raw_url: str) -> WebsiteHistoryResponse:
+        """Analyze historical website archive coverage safely and accurately.
+
+        Queries independent earliest and latest captures using documented CDX API sorting,
+        ensuring that result limits do not truncate or distort the newest observed date.
+        """
+        normalized_url, clean_hostname = validate_and_sanitize_url(raw_url)
+        now_iso = datetime.now(timezone.utc).isoformat()
 
         earliest: Optional[WebsiteArchiveSnapshot] = None
         latest: Optional[WebsiteArchiveSnapshot] = None
         samples: List[WebsiteArchiveSnapshot] = []
+        coverage_status = "SAMPLED"
 
-        if archive_available:
-            earliest = records[0]
-            latest = records[-1]
+        try:
+            # 1. Independent earliest capture query (ascending order, limit=1)
+            earliest = self.get_single_snapshot(clean_hostname, sort_reverse=False)
 
-            # Collect a distributed sample across the timeline (up to 6 snapshots)
-            if total_observed <= 6:
-                samples = records
-            else:
-                step = total_observed / 5
-                indexes = [int(i * step) for i in range(5)]
-                if (total_observed - 1) not in indexes:
-                    indexes.append(total_observed - 1)
-                samples = [records[i] for i in sorted(set(indexes)) if i < total_observed]
+            # 2. Independent latest capture query (reverse sort order, limit=1)
+            latest = self.get_single_snapshot(clean_hostname, sort_reverse=True)
+
+            # 3. Distributed historical sample captures
+            samples = self.get_sample_snapshots(clean_hostname, max_samples=15)
+        except (WaybackTimeoutError, WaybackRateLimitError):
+            raise
+        except Exception as e:
+            logger.warning("Error fetching website archive parts: %s", e)
+
+        # Determine archive availability and coverage status
+        archive_available = earliest is not None or latest is not None or len(samples) > 0
+
+        if not archive_available:
+            coverage_status = "NO_ARCHIVES"
+        elif earliest is not None and latest is not None:
+            coverage_status = "COMPLETE"
+        else:
+            coverage_status = "SAMPLED"
+
+        sample_count = len(samples)
+        total_captures_estimate: Optional[str] = None
+        if archive_available and earliest and latest:
+            earliest_yr = earliest.formatted_date[:4]
+            latest_yr = latest.formatted_date[:4]
+            total_captures_estimate = (
+                f"Historical captures observed spanning from {earliest_yr} to {latest_yr}. "
+                f"Sample includes {sample_count} snapshots (does not represent total capture volume)."
+            )
 
         website_data = WebsiteArchiveData(
             target_url=normalized_url,
             cleaned_domain=clean_hostname,
             archive_available=archive_available,
-            total_snapshots_observed=total_observed,
+            coverage_status=coverage_status,
             earliest_snapshot=earliest,
             latest_snapshot=latest,
+            sample_snapshots_count=sample_count,
             sample_snapshots=samples,
+            total_snapshots_observed=sample_count,  # Maintain legacy alias compatibility
+            total_captures_estimate=total_captures_estimate,
         )
 
         findings: List[EvidenceFinding] = []
@@ -219,7 +302,7 @@ class WaybackService:
                 )
             )
 
-            if latest and latest.timestamp != earliest.timestamp:
+            if latest:
                 findings.append(
                     EvidenceFinding(
                         field_name="latest_archive_capture",
@@ -235,20 +318,21 @@ class WaybackService:
                     )
                 )
 
-            findings.append(
-                EvidenceFinding(
-                    field_name="archive_snapshot_count",
-                    field_label="Total Archive Captures Sampled",
-                    observed_value=total_observed,
-                    source_type=SourceType.INTERNET_ARCHIVE_CDX,
-                    source_url=f"https://web.archive.org/web/*/{clean_hostname}",
-                    observation_date=earliest.formatted_date,
-                    retrieval_date=now_iso,
-                    evidence_text=f"{total_observed} HTTP 200 snapshots indexed in query sample",
-                    verification_status=VerificationStatus.INDEPENDENTLY_RETRIEVED,
-                    limitations="Represents query limit of 100 successful captures, not all historical crawler passes.",
+            if sample_count > 0:
+                findings.append(
+                    EvidenceFinding(
+                        field_name="archive_sample_snapshots",
+                        field_label="Timeline Sample Snapshots",
+                        observed_value=f"{sample_count} historical snapshot(s) sampled",
+                        source_type=SourceType.INTERNET_ARCHIVE_CDX,
+                        source_url=f"https://web.archive.org/web/*/{clean_hostname}",
+                        observation_date=earliest.formatted_date,
+                        retrieval_date=now_iso,
+                        evidence_text=f"{sample_count} distinct snapshots sampled across historical timeline",
+                        verification_status=VerificationStatus.INDEPENDENTLY_RETRIEVED,
+                        limitations="Represents a sampled timeline cross-section, not the complete historical crawl archive.",
+                    )
                 )
-            )
 
             # Generate tailored Bangla questions
             try:

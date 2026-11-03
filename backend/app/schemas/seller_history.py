@@ -23,6 +23,7 @@ class VerificationStatus(str, Enum):
     USER_PROVIDED_UNVERIFIED = "USER_PROVIDED_UNVERIFIED"
     INDEPENDENTLY_RETRIEVED = "INDEPENDENTLY_RETRIEVED"
     UNAVAILABLE = "UNAVAILABLE"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
 
 
 class EvidenceFinding(BaseModel):
@@ -64,6 +65,8 @@ class PageTransparencyData(BaseModel):
     manager_locations: List[PageManagerLocation] = Field(default_factory=list, description="Manager country locations")
     is_running_ads: Optional[bool] = Field(None, description="Whether the page is currently running ads")
     unreadable_or_missing_fields: List[str] = Field(default_factory=list, description="Fields not visible or unreadable in image")
+    timeline_consistency_status: str = Field("CONSISTENT", description="Timeline validation status: CONSISTENT or NEEDS_REVIEW")
+    timeline_conflicts: List[str] = Field(default_factory=list, description="Specific timeline discrepancies detected")
     raw_extracted_text: str = Field("", description="Full visible text transcribed from the screenshot")
 
 
@@ -95,10 +98,13 @@ class WebsiteArchiveData(BaseModel):
     target_url: str = Field(..., description="Original URL provided by user")
     cleaned_domain: str = Field(..., description="Normalized hostname/domain queried on Wayback CDX")
     archive_available: bool = Field(False, description="Whether any archived snapshots were found")
-    total_snapshots_observed: int = Field(0, description="Number of snapshot captures observed in query")
+    coverage_status: str = Field("SAMPLED", description="Coverage status: COMPLETE, SAMPLED, NO_ARCHIVES, RATE_LIMITED, TIMEOUT, UNAVAILABLE")
     earliest_snapshot: Optional[WebsiteArchiveSnapshot] = Field(None, description="Earliest recorded archive capture")
     latest_snapshot: Optional[WebsiteArchiveSnapshot] = Field(None, description="Most recent recorded archive capture")
+    sample_snapshots_count: int = Field(0, description="Count of historical snapshots in sample")
     sample_snapshots: List[WebsiteArchiveSnapshot] = Field(default_factory=list, description="Sample of historical snapshots")
+    total_snapshots_observed: int = Field(0, description="Count of sampled snapshots (legacy alias)")
+    total_captures_estimate: Optional[str] = Field(None, description="Descriptive note regarding total historical captures")
     data_limitations: str = Field(
         "Earliest archive capture indicates when Internet Archive crawlers first indexed the website. "
         "It is NOT proof of the domain registration date or business founding date. "

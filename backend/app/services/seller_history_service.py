@@ -51,10 +51,10 @@ class SellerHistoryService:
             for f in findings:
                 if f.verification_status == VerificationStatus.INDEPENDENTLY_RETRIEVED:
                     independently_retrieved.append(f)
-                elif f.verification_status == VerificationStatus.USER_PROVIDED_UNVERIFIED:
-                    user_provided_screenshots.append(f)
-                else:
+                elif f.verification_status == VerificationStatus.UNAVAILABLE:
                     unverified_or_unavailable.append(f)
+                else:
+                    user_provided_screenshots.append(f)
             buyer_questions.extend(questions)
 
             # Generate factual summary point

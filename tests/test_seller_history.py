@@ -33,6 +33,8 @@ from backend.app.schemas.seller_history import (
 from backend.app.services.page_transparency_service import (
     PageTransparencyService,
     calculate_page_age_months,
+    parse_date_to_comparable,
+    check_timeline_consistency,
 )
 from backend.app.services.ssrf_validator import (
     validate_and_sanitize_url,
@@ -42,6 +44,7 @@ from backend.app.services.wayback_service import (
     WaybackService,
     WaybackTimeoutError,
     WaybackRateLimitError,
+    validate_and_format_timestamp,
 )
 from backend.app.services.seller_history_service import SellerHistoryService
 from backend.app.config import settings
@@ -146,22 +149,61 @@ def test_ssrf_accepts_legitimate_public_url():
 # 2. WEBSITE WAYBACK HISTORICAL RESEARCH TESTS
 # ============================================================================
 
+def test_validate_and_format_timestamp():
+    """Verify validation of Wayback 14-digit timestamps."""
+    # Valid timestamp
+    ok, dt, yr = validate_and_format_timestamp("20241014120000")
+    assert ok is True
+    assert dt == "2024-10-14"
+    assert yr == "2024"
+
+    # Pre-1996 timestamp (Internet Archive founded in 1996)
+    ok, _, _ = validate_and_format_timestamp("19900101120000")
+    assert ok is False
+
+    # Future-dated timestamp
+    ok, _, _ = validate_and_format_timestamp("20990101120000")
+    assert ok is False
+
+    # Invalid characters or length
+    ok, _, _ = validate_and_format_timestamp("abc")
+    assert ok is False
+
+    # Invalid calendar month
+    ok, _, _ = validate_and_format_timestamp("20241301120000")
+    assert ok is False
+
+
 def test_wayback_service_with_valid_archive():
     """Test Wayback service with a simulated multi-snapshot archive response."""
-    mock_cdx_rows = [
-        ["timestamp", "original", "statuscode"],
-        ["20150110205606", "http://www.daraz.com.bd:80/", "200"],
-        ["20180102114753", "https://www.daraz.com.bd/", "200"],
-        ["20240101112511", "https://www.daraz.com.bd/", "200"],
-    ]
-
     service = WaybackService()
-    with patch.object(service, "query_cdx_api", return_value=mock_cdx_rows):
+
+    def mock_query_cdx_raw(params: dict):
+        if params.get("limit") == "1" and params.get("sort") != "reverse":
+            return [
+                ["timestamp", "original", "statuscode"],
+                ["20150110205606", "http://www.daraz.com.bd:80/", "200"],
+            ]
+        elif params.get("limit") == "1" and params.get("sort") == "reverse":
+            return [
+                ["timestamp", "original", "statuscode"],
+                ["20240101112511", "https://www.daraz.com.bd/", "200"],
+            ]
+        else:
+            return [
+                ["timestamp", "original", "statuscode"],
+                ["20150110205606", "http://www.daraz.com.bd:80/", "200"],
+                ["20180102114753", "https://www.daraz.com.bd/", "200"],
+                ["20240101112511", "https://www.daraz.com.bd/", "200"],
+            ]
+
+    with patch.object(service, "query_cdx_raw", side_effect=mock_query_cdx_raw):
         resp = service.fetch_website_history("https://daraz.com.bd")
 
         assert resp.status == "success"
         assert resp.website_data.archive_available is True
-        assert resp.website_data.total_snapshots_observed == 3
+        assert resp.website_data.coverage_status == "COMPLETE"
+        assert resp.website_data.sample_snapshots_count == 3
         assert resp.website_data.earliest_snapshot.formatted_date == "2015-01-10"
         assert resp.website_data.latest_snapshot.formatted_date == "2024-01-01"
         assert "web.archive.org/web/20150110205606" in resp.website_data.earliest_snapshot.snapshot_url
@@ -177,16 +219,58 @@ def test_wayback_service_with_valid_archive():
         assert len(resp.buyer_questions) > 0
 
 
+def test_wayback_service_large_history_independent_earliest_latest():
+    """Verify that a site with massive historical captures (>100) retrieves true earliest (2014)
+
+    and latest (2026) captures independently without false truncation from forward limits.
+    """
+    service = WaybackService()
+
+    def mock_query_cdx_raw(params: dict):
+        if params.get("limit") == "1" and params.get("sort") != "reverse":
+            return [
+                ["timestamp", "original", "statuscode"],
+                ["20141104183951", "http://daraz.com.bd:80/", "200"],
+            ]
+        elif params.get("limit") == "1" and params.get("sort") == "reverse":
+            return [
+                ["timestamp", "original", "statuscode"],
+                ["20261102131729", "https://www.daraz.com.bd/", "200"],
+            ]
+        else:
+            return [
+                ["timestamp", "original", "statuscode"],
+                ["20141104183951", "http://daraz.com.bd:80/", "200"],
+                ["20150110205606", "http://www.daraz.com.bd:80/", "200"],
+                ["20261102131729", "https://www.daraz.com.bd/", "200"],
+            ]
+
+    with patch.object(service, "query_cdx_raw", side_effect=mock_query_cdx_raw):
+        resp = service.fetch_website_history("https://daraz.com.bd")
+
+        assert resp.status == "success"
+        assert resp.website_data.coverage_status == "COMPLETE"
+        # Earliest must be 2014
+        assert resp.website_data.earliest_snapshot.formatted_date == "2014-11-04"
+        # Latest must be 2026, NOT an intermediate date
+        assert resp.website_data.latest_snapshot.formatted_date == "2026-11-02"
+        # Total captures estimate disclaimer
+        assert resp.website_data.total_captures_estimate is not None
+        assert "does not represent total capture volume" in resp.website_data.total_captures_estimate
+
+
 def test_wayback_service_zero_snapshots():
     """Test Wayback service when domain has zero captures in Internet Archive."""
     service = WaybackService()
-    with patch.object(service, "query_cdx_api", return_value=[]):
+    with patch.object(service, "query_cdx_raw", return_value=[]):
         resp = service.fetch_website_history("https://brandnewstore12345.com.bd")
 
         assert resp.status == "success"
         assert resp.website_data.archive_available is False
+        assert resp.website_data.coverage_status == "NO_ARCHIVES"
         assert resp.website_data.total_snapshots_observed == 0
         assert resp.website_data.earliest_snapshot is None
+        assert resp.website_data.latest_snapshot is None
 
         presence_finding = next(f for f in resp.findings if f.field_name == "archive_presence")
         assert presence_finding.verification_status == VerificationStatus.UNAVAILABLE
@@ -196,13 +280,13 @@ def test_wayback_service_zero_snapshots():
 def test_wayback_endpoint_api_errors():
     """Test HTTP API handling when Wayback API times out or hits rate limits."""
     # Test rate limit (429)
-    with patch.object(WaybackService, "query_cdx_api", side_effect=WaybackRateLimitError):
+    with patch.object(WaybackService, "fetch_website_history", side_effect=WaybackRateLimitError):
         r = client.post("/api/v1/seller-history/website", json={"url": "https://example.com"})
         assert r.status_code == 429
         assert "rate limit" in r.json()["detail"].lower()
 
     # Test timeout (504)
-    with patch.object(WaybackService, "query_cdx_api", side_effect=WaybackTimeoutError):
+    with patch.object(WaybackService, "fetch_website_history", side_effect=WaybackTimeoutError):
         r = client.post("/api/v1/seller-history/website", json={"url": "https://example.com"})
         assert r.status_code == 504
         assert "timed out" in r.json()["detail"].lower()
@@ -305,6 +389,81 @@ def test_page_transparency_multiple_name_changes_as_factual_record():
     assert "does not constitute proof of fraud" in name_finding.limitations
 
 
+def test_page_transparency_timeline_name_change_before_creation_needs_review():
+    """Verify that a name change occurring before the page creation date triggers NEEDS_REVIEW."""
+    service = PageTransparencyService()
+    raw_text = (
+        "Page Transparency\nPage Name: BD Tech Store\nPage created - 10 May 2024\n"
+        "Changed name 1 time: 'Old Fashion BD' (15 January 2022)"
+    )
+    data = PageTransparencyData(
+        page_name="BD Tech Store",
+        page_creation_date="10 May 2024",
+        name_changes=[
+            PageNameChange(previous_name="Old Fashion BD", change_date="15 January 2022"),
+        ],
+        raw_extracted_text=raw_text,
+    )
+
+    validated = service.validate_transparency_evidence(data)
+    assert validated.timeline_consistency_status == "NEEDS_REVIEW"
+    assert len(validated.timeline_conflicts) > 0
+    assert any("precedes page creation date" in c for c in validated.timeline_conflicts)
+
+    findings, questions = service.build_findings_and_questions(validated)
+    nc_finding = next(f for f in findings if f.field_name == "page_name_changes")
+    assert nc_finding.verification_status == VerificationStatus.NEEDS_REVIEW
+    assert "Timeline anomaly detected" in nc_finding.limitations
+    assert "does not imply fraud" in nc_finding.limitations
+    assert any("অসঙ্গতি" in q for q in questions)
+
+
+def test_page_transparency_timeline_future_dated_needs_review():
+    """Verify that future-dated creation dates trigger NEEDS_REVIEW without accusations."""
+    service = PageTransparencyService()
+    raw_text = "Page Transparency\nPage Name: Time Traveler BD\nPage created - 10 May 2099"
+    data = PageTransparencyData(
+        page_name="Time Traveler BD",
+        page_creation_date="10 May 2099",
+        raw_extracted_text=raw_text,
+    )
+
+    validated = service.validate_transparency_evidence(data)
+    assert validated.timeline_consistency_status == "NEEDS_REVIEW"
+    assert len(validated.timeline_conflicts) > 0
+    assert any("in the future" in c for c in validated.timeline_conflicts)
+
+    findings, questions = service.build_findings_and_questions(validated)
+    date_finding = next(f for f in findings if f.field_name == "page_creation_date")
+    assert date_finding.verification_status == VerificationStatus.NEEDS_REVIEW
+    assert "future" in date_finding.limitations.lower()
+
+
+def test_page_transparency_timeline_consistent():
+    """Verify that chronological, valid historical events yield CONSISTENT status."""
+    service = PageTransparencyService()
+    raw_text = (
+        "Page Transparency\nPage Name: Dhaka Mart\nPage created - 15 January 2020\n"
+        "Changed name 1 time: 'Dhaka Grocery' (10 March 2022)"
+    )
+    data = PageTransparencyData(
+        page_name="Dhaka Mart",
+        page_creation_date="15 January 2020",
+        name_changes=[
+            PageNameChange(previous_name="Dhaka Grocery", change_date="10 March 2022"),
+        ],
+        raw_extracted_text=raw_text,
+    )
+
+    validated = service.validate_transparency_evidence(data)
+    assert validated.timeline_consistency_status == "CONSISTENT"
+    assert len(validated.timeline_conflicts) == 0
+
+    findings, questions = service.build_findings_and_questions(validated)
+    date_finding = next(f for f in findings if f.field_name == "page_creation_date")
+    assert date_finding.verification_status == VerificationStatus.USER_PROVIDED_UNVERIFIED
+
+
 def test_page_transparency_endpoint_with_mocked_gemini():
     """Test the full /api/v1/seller-history/page-transparency endpoint with a synthetic image."""
     img_bytes = create_synthetic_page_transparency_image()
@@ -370,7 +529,7 @@ def test_consolidated_seller_history_report():
         transparency_service=transparency_service,
     )
 
-    with patch.object(wayback_service, "query_cdx_api", return_value=mock_cdx_rows):
+    with patch.object(wayback_service, "query_cdx_raw", return_value=mock_cdx_rows):
         report = report_service.generate_report(
             transparency_data=transparency_data,
             website_url="https://gadgetlab.com.bd",
@@ -388,6 +547,23 @@ def test_consolidated_seller_history_report():
         assert "trust_score" not in report_json
         assert "scam_probability" not in report_json
         assert "fraud_score" not in report_json
+
+
+def test_consolidated_seller_history_with_timeline_needs_review():
+    """Verify consolidated report keeps NEEDS_REVIEW finding in user_provided_screenshots."""
+    transparency_data = PageTransparencyData(
+        page_name="Anomaly BD",
+        page_creation_date="2099-01-01",
+        timeline_consistency_status="NEEDS_REVIEW",
+        timeline_conflicts=["Page creation date '2099-01-01' is in the future."],
+        raw_extracted_text="Anomaly BD 2099-01-01",
+    )
+    report_service = SellerHistoryService()
+    report = report_service.generate_report(transparency_data=transparency_data)
+    assert report.status == "success"
+    # Finding for creation date should be in user_provided_screenshots with status NEEDS_REVIEW
+    creation_f = next(f for f in report.user_provided_screenshots if f.field_name == "page_creation_date")
+    assert creation_f.verification_status == VerificationStatus.NEEDS_REVIEW
 
 
 # ============================================================================

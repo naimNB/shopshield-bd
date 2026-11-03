@@ -7,7 +7,7 @@ Never asserts that a user screenshot is verified against Facebook servers.
 Identifies name changes as factual historical observations, not proof of fraud.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 import json
 import logging
 import re
@@ -68,40 +68,133 @@ Target Fields to Extract:
 - raw_extracted_text: Complete text transcription of the screenshot.
 """
 
+MONTH_MAP = {
+    "jan": 1, "january": 1,
+    "feb": 2, "february": 2,
+    "mar": 3, "march": 3,
+    "apr": 4, "april": 4,
+    "may": 5,
+    "jun": 6, "june": 6,
+    "jul": 7, "july": 7,
+    "aug": 8, "august": 8,
+    "sep": 9, "september": 9,
+    "oct": 10, "october": 10,
+    "nov": 11, "november": 11,
+    "dec": 12, "december": 12,
+}
+
+
+def parse_date_to_comparable(d_str: Optional[str]) -> Optional[date]:
+    """Parse common human date strings from Facebook Page Transparency into comparable date objects.
+
+    Handles formats such as:
+    - YYYY-MM-DD (e.g. '2024-10-14')
+    - '14 October 2024', '14 Oct 2024'
+    - 'October 14, 2024', 'Oct 14, 2024'
+    - 'October 2024', 'Oct 2024' -> date(2024, 10, 1)
+    - '2024' -> date(2024, 1, 1)
+    """
+    if not d_str or not isinstance(d_str, str):
+        return None
+
+    clean_str = d_str.strip()
+    if not clean_str:
+        return None
+
+    # 1. ISO format: YYYY-MM-DD
+    m_iso = re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", clean_str)
+    if m_iso:
+        try:
+            return date(int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3)))
+        except ValueError:
+            pass
+
+    # 2. Day Month Year: e.g. "14 October 2024", "14 Oct 2024"
+    m_dmy = re.search(r"\b(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\b", clean_str)
+    if m_dmy:
+        m_str = m_dmy.group(2).lower()
+        if m_str in MONTH_MAP:
+            try:
+                return date(int(m_dmy.group(3)), MONTH_MAP[m_str], int(m_dmy.group(1)))
+            except ValueError:
+                pass
+
+    # 3. Month Day, Year: e.g. "October 14, 2024", "Oct 14 2024"
+    m_mdy = re.search(r"\b([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})\b", clean_str)
+    if m_mdy:
+        m_str = m_mdy.group(1).lower()
+        if m_str in MONTH_MAP:
+            try:
+                return date(int(m_mdy.group(3)), MONTH_MAP[m_str], int(m_mdy.group(2)))
+            except ValueError:
+                pass
+
+    # 4. Month Year: e.g. "October 2024"
+    m_my = re.search(r"\b([A-Za-z]+)\s+(\d{4})\b", clean_str)
+    if m_my:
+        m_str = m_my.group(1).lower()
+        if m_str in MONTH_MAP:
+            try:
+                return date(int(m_my.group(2)), MONTH_MAP[m_str], 1)
+            except ValueError:
+                pass
+
+    # 5. Year only: e.g. "2024"
+    m_y = re.search(r"\b(20\d\d|19\d\d)\b", clean_str)
+    if m_y:
+        try:
+            return date(int(m_y.group(1)), 1, 1)
+        except ValueError:
+            pass
+
+    return None
+
+
+def check_timeline_consistency(data: PageTransparencyData) -> Tuple[str, List[str]]:
+    """Validate timeline consistency in Facebook Page Transparency records.
+
+    Detects:
+    - Creation date in the future
+    - Name change dates in the future
+    - Name change date preceding the page creation date
+
+    Returns (status, conflicts) where status is 'CONSISTENT' or 'NEEDS_REVIEW'.
+    """
+    conflicts: List[str] = []
+    today = datetime.now(timezone.utc).date()
+
+    parsed_creation: Optional[date] = None
+    if data.page_creation_date:
+        parsed_creation = parse_date_to_comparable(data.page_creation_date)
+        if parsed_creation and parsed_creation > today:
+            conflicts.append(
+                f"Page creation date '{data.page_creation_date}' is in the future (after current date {today.isoformat()})."
+            )
+
+    for nc in data.name_changes:
+        if nc.change_date:
+            parsed_nc = parse_date_to_comparable(nc.change_date)
+            if parsed_nc:
+                if parsed_nc > today:
+                    conflicts.append(
+                        f"Name change date '{nc.change_date}' for previous name '{nc.previous_name}' is in the future."
+                    )
+                if parsed_creation and parsed_nc < parsed_creation:
+                    conflicts.append(
+                        f"Name change date '{nc.change_date}' for previous name '{nc.previous_name}' precedes page creation date '{data.page_creation_date}'."
+                    )
+
+    status = "NEEDS_REVIEW" if conflicts else "CONSISTENT"
+    return status, conflicts
+
 
 def calculate_page_age_months(creation_date_str: Optional[str]) -> Optional[int]:
     """Calculate approximate page age in months from creation date string if parseable."""
-    if not creation_date_str:
+    d = parse_date_to_comparable(creation_date_str)
+    if not d:
         return None
-
-    # Try common date formats
-    clean_str = creation_date_str.strip()
-    # Match 4-digit year and optional month
-    year_match = re.search(r"\b(20\d\d|19\d\d)\b", clean_str)
-    if not year_match:
-        return None
-
-    year = int(year_match.group(1))
-    now = datetime.now(timezone.utc)
-    current_year = now.year
-    current_month = now.month
-
-    # Check for month names
-    months = {
-        "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
-        "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
-        "aug": 8, "august": 8, "sep": 9, "september": 9, "oct": 10, "october": 10,
-        "nov": 11, "november": 11, "dec": 12, "december": 12
-    }
-
-    month = 1
-    lower_str = clean_str.lower()
-    for m_name, m_num in months.items():
-        if re.search(r"\b" + m_name + r"\b", lower_str):
-            month = m_num
-            break
-
-    total_months = (current_year - year) * 12 + (current_month - month)
+    today = datetime.now(timezone.utc).date()
+    total_months = (today.year - d.year) * 12 + (today.month - d.month)
     return max(0, total_months)
 
 
@@ -289,6 +382,12 @@ class PageTransparencyService:
         data.manager_locations = valid_locations
 
         data.unreadable_or_missing_fields = sorted(list(set(unreadable)))
+
+        # Timeline consistency check
+        consistency_status, conflicts = check_timeline_consistency(data)
+        data.timeline_consistency_status = consistency_status
+        data.timeline_conflicts = conflicts
+
         return data
 
     def build_findings_and_questions(
@@ -302,6 +401,9 @@ class PageTransparencyService:
             "Extracted from user-submitted screenshot. Not independently verified with Meta servers. "
             "Screenshots can be edited or outdated. Historical observations do not imply fraud."
         )
+
+        creation_conflicts = [c for c in data.timeline_conflicts if "creation date" in c.lower()]
+        nc_conflicts = [c for c in data.timeline_conflicts if "name change" in c.lower()]
 
         # 1. Page Name Finding
         if data.page_name:
@@ -322,6 +424,21 @@ class PageTransparencyService:
         # 2. Page Creation Date Finding
         if data.page_creation_date:
             age_desc = f" (~{data.page_age_months} months ago)" if data.page_age_months is not None else ""
+            if creation_conflicts:
+                date_status = VerificationStatus.NEEDS_REVIEW
+                date_limitations = (
+                    f"Timeline anomaly detected: {'; '.join(creation_conflicts)}. "
+                    "Creation date is future-dated or contradicts historical timeline. "
+                    "Screenshot evidence requires manual review; does not imply fraud."
+                )
+                buyer_questions.append(
+                    f"পেজের তৈরির তারিখে অসামঞ্জস্য ({data.page_creation_date}) পরিলক্ষিত হয়েছে। "
+                    "অর্ডার করার পূর্বে ফেসবুক পেজের মূল About সেকশন সরাসরি ভিজিট করে সঠিক তথ্য যাচাই করুন।"
+                )
+            else:
+                date_status = VerificationStatus.USER_PROVIDED_UNVERIFIED
+                date_limitations = disclaimer_note
+
             findings.append(
                 EvidenceFinding(
                     field_name="page_creation_date",
@@ -331,21 +448,22 @@ class PageTransparencyService:
                     observation_date=data.page_creation_date,
                     retrieval_date=now_iso,
                     evidence_text=f"Visible creation date: {data.page_creation_date}",
-                    verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
-                    limitations=disclaimer_note,
+                    verification_status=date_status,
+                    limitations=date_limitations,
                 )
             )
 
-            # Generate age-related buyer questions
-            if data.page_age_months is not None and data.page_age_months < 6:
-                buyer_questions.append(
-                    f"পেজটি অতি সম্প্রতি ({data.page_creation_date}) তৈরি করা হয়েছে। "
-                    "কোনো অনির্দিষ্ট বিকাশ/নগদ নম্বরে অগ্রিম সম্পূর্ণ টাকা না দিয়ে কুরিয়ার ডেলিভারিতে পণ্য দেখে মূল্য পরিশোধের সুবিধা নিন।"
-                )
-            elif data.page_age_months is not None and data.page_age_months < 12:
-                buyer_questions.append(
-                    f"পেজটির বয়স প্রায় {data.page_age_months} মাস। পূর্বে কেনাকাটা করা কোনো কাস্টমারের রিভিউ বা ডেলিভারি স্লিপ দেখতে চেয়েছেন কি?"
-                )
+            # Generate age-related buyer questions if timeline is consistent
+            if not creation_conflicts:
+                if data.page_age_months is not None and data.page_age_months < 6:
+                    buyer_questions.append(
+                        f"পেজটি অতি সম্প্রতি ({data.page_creation_date}) তৈরি করা হয়েছে। "
+                        "কোনো অনির্দিষ্ট বিকাশ/নগদ নম্বরে অগ্রিম সম্পূর্ণ টাকা না দিয়ে কুরিয়ার ডেলিভারিতে পণ্য দেখে মূল্য পরিশোধের সুবিধা নিন।"
+                    )
+                elif data.page_age_months is not None and data.page_age_months < 12:
+                    buyer_questions.append(
+                        f"পেজটির বয়স প্রায় {data.page_age_months} মাস। পূর্বে কেনাকাটা করা কোনো কাস্টমারের রিভিউ বা ডেলিভারি স্লিপ দেখতে চেয়েছেন কি?"
+                    )
         else:
             findings.append(
                 EvidenceFinding(
@@ -366,6 +484,28 @@ class PageTransparencyService:
         # 3. Name Changes Finding
         if data.name_changes_count > 0:
             names_summary = ", ".join([f"'{nc.previous_name}'" for nc in data.name_changes])
+            if nc_conflicts:
+                nc_status = VerificationStatus.NEEDS_REVIEW
+                nc_limitations = (
+                    f"Timeline anomaly detected: {'; '.join(nc_conflicts)}. "
+                    "Recorded name change date contradicts page creation date or is future-dated. "
+                    "Historical observation does not imply fraud."
+                )
+                buyer_questions.append(
+                    f"পেজের নাম পরিবর্তনের ইতিহাসে অসঙ্গতি দেখা গেছে ({'; '.join(nc_conflicts)})। "
+                    "শপটি কি পূর্বে অন্য কোনো পণ্য বিক্রি করত নাকি রিব্র্যান্ডিং হয়েছে, তা বিক্রেতার সাথে স্পষ্ট করুন।"
+                )
+            else:
+                nc_status = VerificationStatus.USER_PROVIDED_UNVERIFIED
+                nc_limitations = (
+                    "Name changes are factual historical records. Businesses legitimately rebrand, "
+                    "merge, or pivot. This observation does not constitute proof of fraud."
+                )
+                buyer_questions.append(
+                    f"পেজটির নাম পূর্বে পরিবর্তিত হয়েছে ({names_summary})। "
+                    "শপটি কি পূর্বে অন্য পণ্যের পেজ ছিল নাকি কেবল রিব্র্যান্ডিং করা হয়েছে, তা নিশ্চিত করুন।"
+                )
+
             findings.append(
                 EvidenceFinding(
                     field_name="page_name_changes",
@@ -374,16 +514,9 @@ class PageTransparencyService:
                     source_type=SourceType.USER_SCREENSHOT,
                     retrieval_date=now_iso,
                     evidence_text=f"Recorded {data.name_changes_count} name change(s): {names_summary}",
-                    verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
-                    limitations=(
-                        "Name changes are factual historical records. Businesses legitimately rebrand, "
-                        "merge, or pivot. This observation does not constitute proof of fraud."
-                    ),
+                    verification_status=nc_status,
+                    limitations=nc_limitations,
                 )
-            )
-            buyer_questions.append(
-                f"পেজটির নাম পূর্বে পরিবর্তিত হয়েছে ({names_summary})। "
-                "শপটি কি পূর্বে অন্য পণ্যের পেজ ছিল নাকি কেবল রিব্র্যান্ডিং করা হয়েছে, তা নিশ্চিত করুন।"
             )
         else:
             findings.append(

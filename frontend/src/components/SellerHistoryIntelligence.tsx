@@ -42,6 +42,8 @@ interface PageTransparencyData {
   manager_locations: PageManagerLocation[];
   is_running_ads?: boolean | null;
   unreadable_or_missing_fields: string[];
+  timeline_consistency_status?: string;
+  timeline_conflicts?: string[];
   raw_extracted_text: string;
 }
 
@@ -56,10 +58,13 @@ interface WebsiteArchiveData {
   target_url: string;
   cleaned_domain: string;
   archive_available: boolean;
-  total_snapshots_observed: number;
+  coverage_status?: string;
   earliest_snapshot?: WebsiteArchiveSnapshot | null;
   latest_snapshot?: WebsiteArchiveSnapshot | null;
+  sample_snapshots_count?: number;
   sample_snapshots: WebsiteArchiveSnapshot[];
+  total_snapshots_observed: number;
+  total_captures_estimate?: string | null;
   data_limitations: string;
 }
 
@@ -72,7 +77,7 @@ interface EvidenceFinding {
   observation_date?: string | null;
   retrieval_date: string;
   evidence_text?: string | null;
-  verification_status: 'USER_PROVIDED_UNVERIFIED' | 'INDEPENDENTLY_RETRIEVED' | 'UNAVAILABLE';
+  verification_status: 'USER_PROVIDED_UNVERIFIED' | 'INDEPENDENTLY_RETRIEVED' | 'UNAVAILABLE' | 'NEEDS_REVIEW';
   limitations: string;
 }
 
@@ -359,6 +364,23 @@ export const SellerHistoryIntelligence: React.FC = () => {
                     <span className="text-[10px] text-amber-400 font-mono">User-Provided (Unverified)</span>
                   </div>
 
+                  {transparencyData.timeline_consistency_status === 'NEEDS_REVIEW' && (
+                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start space-x-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
+                      <div>
+                        <p className="font-semibold text-amber-200">টাইমলাইন অসঙ্গতি সতর্কতা (Needs Review):</p>
+                        <ul className="list-disc list-inside mt-1 space-y-0.5 text-[11px] text-amber-300">
+                          {transparencyData.timeline_conflicts?.map((conflict, cIdx) => (
+                            <li key={cIdx}>{conflict}</li>
+                          ))}
+                        </ul>
+                        <p className="mt-1 text-[10px] text-amber-400/80 italic">
+                          স্ক্রিনশটে তারিখের অসঙ্গতি থাকতে পারে। অর্ডার করার পূর্বে ফেসবুক পেজের মূল About সেকশন সরাসরি যাচাই করুন।
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <label className="text-slate-400 block mb-1">পেজের নাম</label>
@@ -488,9 +510,17 @@ export const SellerHistoryIntelligence: React.FC = () => {
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                           : 'bg-slate-800 text-slate-400 border-slate-700'
                       }`}>
-                        {websiteData.archive_available ? `${websiteData.total_snapshots_observed} স্ন্যাপশট` : 'আর্কাইভ নেই'}
+                        {websiteData.archive_available
+                          ? `${websiteData.sample_snapshots_count || websiteData.total_snapshots_observed} নমুনা (${websiteData.coverage_status || 'SAMPLED'})`
+                          : 'আর্কাইভ নেই'}
                       </span>
                     </div>
+
+                    {websiteData.total_captures_estimate && (
+                      <p className="text-[11px] text-slate-400 italic bg-slate-900/60 p-2 rounded border border-slate-800/80">
+                        📊 {websiteData.total_captures_estimate}
+                      </p>
+                    )}
 
                     {websiteData.archive_available && websiteData.earliest_snapshot ? (
                       <div className="space-y-2 text-xs">
@@ -647,9 +677,23 @@ export const SellerHistoryIntelligence: React.FC = () => {
                 <div className="space-y-3">
                   {report.user_provided_screenshots.length > 0 ? (
                     report.user_provided_screenshots.map((f, idx) => (
-                      <div key={idx} className="p-2.5 rounded bg-slate-900/80 border border-slate-800 text-xs">
-                        <p className="font-semibold text-slate-200">{f.field_label}</p>
-                        <p className="text-amber-300 font-mono mt-0.5">{String(f.observed_value)}</p>
+                      <div key={idx} className={`p-2.5 rounded border text-xs ${
+                        f.verification_status === 'NEEDS_REVIEW'
+                          ? 'bg-amber-950/40 border-amber-500/50'
+                          : 'bg-slate-900/80 border-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-slate-200">{f.field_label}</p>
+                          {f.verification_status === 'NEEDS_REVIEW' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold flex items-center space-x-1">
+                              <AlertCircle className="w-2.5 h-2.5" />
+                              <span>Needs Review</span>
+                            </span>
+                          )}
+                        </div>
+                        <p className={`font-mono mt-0.5 ${
+                          f.verification_status === 'NEEDS_REVIEW' ? 'text-amber-200 font-semibold' : 'text-amber-300'
+                        }`}>{String(f.observed_value)}</p>
                         <p className="text-[10px] text-slate-500 mt-1 italic">{f.limitations}</p>
                       </div>
                     ))
