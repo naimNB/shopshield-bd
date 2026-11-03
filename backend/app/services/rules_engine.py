@@ -26,20 +26,20 @@ class PaymentRulesEngine:
         missing_info: List[MissingInfoItem] = []
         buyer_questions: List[str] = []
 
-        # 1. Advance Payment Rules
-        advance_amount = chat_claims.advance_payment_amount or ad_claims.advance_payment_amount
-        advance_required = chat_claims.advance_payment_required or ad_claims.advance_payment_required
-        advance_purpose = chat_claims.advance_payment_purpose or ad_claims.advance_payment_purpose
-        evidence = chat_claims.advance_payment_evidence or ad_claims.advance_payment_evidence
-        product_price = chat_claims.price or ad_claims.price
+        # 1. Advance Payment Rules - strictly handle tri-state booleans and numerical zero
+        advance_amount = chat_claims.advance_payment_amount if chat_claims.advance_payment_amount is not None else ad_claims.advance_payment_amount
+        advance_required = chat_claims.advance_payment_required if chat_claims.advance_payment_required is not None else ad_claims.advance_payment_required
+        advance_purpose = chat_claims.advance_payment_purpose if chat_claims.advance_payment_purpose is not None else ad_claims.advance_payment_purpose
+        evidence = chat_claims.advance_payment_evidence if chat_claims.advance_payment_evidence is not None else ad_claims.advance_payment_evidence
+        product_price = chat_claims.price if chat_claims.price is not None else ad_claims.price
 
-        if advance_required and evidence:
+        if advance_required is True and evidence:
             norm_purpose = (advance_purpose or "").upper()
-            amt_str = f"৳{advance_amount:,.2f}" if advance_amount else "an unspecified amount"
+            amt_str = f"৳{advance_amount:,.2f}" if advance_amount is not None else "an unspecified amount"
 
             # 1a. Full product payment requested upfront
             if norm_purpose in ("FULL_PRODUCT_PAYMENT", "FULL_PRICE") or (
-                product_price and advance_amount and abs(advance_amount - product_price) < 1.0
+                product_price is not None and advance_amount is not None and abs(advance_amount - product_price) < 1.0
             ):
                 warnings.append(
                     PaymentWarning(
@@ -182,8 +182,26 @@ class PaymentRulesEngine:
             buyer_questions.append(
                 "আপনাদের বিজ্ঞাপনে ক্যাশ অন ডেলিভারি উল্লেখ ছিল, চ্যাটে কেন সম্পূর্ণ অগ্রিম চাওয়া হচ্ছে?"
             )
-        elif chat_claims.cod_available is False or ad_claims.cod_available is False:
-            ev = chat_claims.cod_evidence or ad_claims.cod_evidence
+        elif chat_claims.cod_available is False:
+            ev = chat_claims.cod_evidence
+            warnings.append(
+                PaymentWarning(
+                    type=PaymentWarningType.COD_DENIED_OR_CONFLICT.value,
+                    severity="caution",
+                    supporting_evidence=ev,
+                    explanation=(
+                        "Cash on Delivery is explicitly unavailable. Payment is required prior to receiving the parcel."
+                    ),
+                    suggested_buyer_action=(
+                        "ক্যাশ অন ডেলিভারি না থাকলে সম্পূর্ণ টাকা পাঠানোর আগে বিক্রেতার রিভিউ ও নির্ভরযোগ্যতা যাচাই করুন।"
+                    ),
+                )
+            )
+            buyer_questions.append(
+                "ক্যাশ অন ডেলিভারি সুবিধা না থাকলে, কুরিয়ার অফিস বা কোনো নিরাপদ পেমেন্ট মাধ্যমে লেনদেনের বিকল্প আছে কি?"
+            )
+        elif chat_claims.cod_available is None and ad_claims.cod_available is False:
+            ev = ad_claims.cod_evidence
             warnings.append(
                 PaymentWarning(
                     type=PaymentWarningType.COD_DENIED_OR_CONFLICT.value,
@@ -202,8 +220,27 @@ class PaymentRulesEngine:
             )
 
         # 4. Return Policy Explicit Denial vs Missing
-        if chat_claims.return_policy_available is False or ad_claims.return_policy_available is False:
-            ev = chat_claims.return_policy_evidence or ad_claims.return_policy_evidence
+        if chat_claims.return_policy_available is False:
+            ev = chat_claims.return_policy_evidence
+            warnings.append(
+                PaymentWarning(
+                    type="NO_RETURN_POLICY",
+                    severity="caution",
+                    supporting_evidence=ev,
+                    explanation=(
+                        "The seller explicitly stated that returns or refunds are not allowed (final sale). "
+                        "Purchasing without return recourse carries elevated risk if the product is defective or damaged."
+                    ),
+                    suggested_buyer_action=(
+                        "পণ্য গ্রহণের আগে কুরিয়ারের সামনে পার্সেল খুলে গুণমান ও সাইজ নিশ্চিত হয়ে নিন।"
+                    ),
+                )
+            )
+            buyer_questions.append(
+                "পণ্য যদি সম্পূর্ণ ত্রুটিপূর্ণ বা ক্ষতিগ্রস্ত পৌঁছায়, সেক্ষেত্রে কি কোনো এক্সচেঞ্জ সুবিধা থাকবে?"
+            )
+        elif chat_claims.return_policy_available is None and ad_claims.return_policy_available is False:
+            ev = ad_claims.return_policy_evidence
             warnings.append(
                 PaymentWarning(
                     type="NO_RETURN_POLICY",
@@ -323,7 +360,34 @@ class PaymentRulesEngine:
                 u_status = UnifiedFindingStatus.NEEDS_REVIEW
 
             ev = comp.chat_evidence or comp.ad_evidence
-            val = getattr(chat_claims, comp.field, None) or getattr(ad_claims, comp.field, None)
+            if comp.field == "price":
+                val = chat_claims.price if chat_claims.price is not None else ad_claims.price
+            elif comp.field in ("cod", "cod_availability"):
+                val = chat_claims.cod_available if chat_claims.cod_available is not None else ad_claims.cod_available
+            elif comp.field == "advance_payment":
+                val = chat_claims.advance_payment_amount if chat_claims.advance_payment_amount is not None else (
+                    chat_claims.advance_payment_required if chat_claims.advance_payment_required is not None else (
+                        ad_claims.advance_payment_amount if ad_claims.advance_payment_amount is not None else ad_claims.advance_payment_required
+                    )
+                )
+            elif comp.field == "return_policy":
+                val = chat_claims.return_policy_terms or (
+                    chat_claims.return_policy_available if chat_claims.return_policy_available is not None else (
+                        ad_claims.return_policy_terms or ad_claims.return_policy_available
+                    )
+                )
+            elif comp.field == "warranty":
+                val = chat_claims.warranty_terms or (
+                    chat_claims.warranty_available if chat_claims.warranty_available is not None else (
+                        ad_claims.warranty_terms or ad_claims.warranty_available
+                    )
+                )
+            elif comp.field == "delivery_conditions":
+                val = chat_claims.delivery_conditions or ad_claims.delivery_conditions
+            else:
+                chat_val = getattr(chat_claims, comp.field, None)
+                ad_val = getattr(ad_claims, comp.field, None)
+                val = chat_val if chat_val is not None else ad_val
 
             findings.append(
                 UnifiedFinding(

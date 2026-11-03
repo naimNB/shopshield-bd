@@ -1,0 +1,62 @@
+{
+  "dataset": "frozen",
+  "engine": "gemini",
+  "total_scenarios": 5,
+  "elapsed_seconds": 76.024,
+  "contradiction_confusion_matrix": {
+    "true_positives": 1,
+    "true_negatives": 3,
+    "false_positives": 0,
+    "false_negatives": 1,
+    "precision": 100.0,
+    "recall": 50.0,
+    "f1_score": 66.67,
+    "accuracy": 80.0
+  },
+  "extraction_accuracies": {
+    "price_accuracy": 90.0,
+    "cod_accuracy": 100.0,
+    "advance_accuracy": 100.0,
+    "advance_purpose_accuracy": 100.0,
+    "return_accuracy": 100.0,
+    "missing_info_accuracy": "N/A",
+    "payment_warning_accuracy": 100.0
+  },
+  "evidence_integrity": {
+    "total_quotes": 35,
+    "unsupported_quotes": 2,
+    "unsupported_rate": 5.71,
+    "grounding_rate": 94.29
+  },
+  "language_breakdown": {
+    "bangla": {
+      "total": 3,
+      "correct": 2
+    },
+    "banglish": {
+      "total": 2,
+      "correct": 2
+    },
+    "english": {
+      "total": 0,
+      "correct": 0
+    },
+    "mixed": {
+      "total": 0,
+      "correct": 0
+    }
+  },
+  "failed_scenarios_count": 1,
+  "failed_scenarios": [
+    {
+      "id": "frozen_05",
+      "title": "Cotton Three-Piece: Flat Price Discrepancy (Bangla Contradiction)",
+      "reasons": [
+        "False Negative contradiction: predicted false, expected true",
+        "Ad price mismatch: expected 800.0, got None",
+        "Unsupported evidence quote in ad: '\u09ab\u09bf\u0995\u09b8\u09a1 \u09aa\u09cd\u09b0\u09be\u0987\u099c \u09ee\u09e6\u09e6 \u099f\u09be\u0995\u09be\u0964'",
+        "Unsupported evidence quote in ad: '\u09ab\u09bf\u0995\u09b8\u09a1 \u09aa\u09cd\u09b0\u09be\u0987\u099c \u09ee\u09e6\u09e6 \u099f\u09be\u0995\u09be\u0964'"
+      ]
+    }
+  ]
+}

@@ -367,9 +367,9 @@ class AIExtractorService:
             clause_str = clause.strip()
             if not clause_str:
                 continue
-            is_delivery_or_adv_clause = bool(re.search(r"^(?:ডেলিভারি|delivery|কুরিয়ার|courier|অগ্রিম|advance|booking|বুকিং|চার্জ|charge|ফি|fee)", clause_str, re.IGNORECASE))
+            is_delivery_or_adv_clause = bool(re.search(r"^(?:ডেলিভারি|delivery|কুরিয়ার|courier|অগ্রিম|advance|booking|বুকিং|চার্জ|charge|fee\b|ফি(?:\s|[.,।;!?]|$))", clause_str, re.IGNORECASE))
             
-            m1 = re.search(r"(?:price|অফার\s*মূল্য|মূল্য|দাম|rate|দর|৳|bdt)(?:[^\d০-৯\n\r]{0,25})([0-9০-৯,]+(?:\.[0-9০-৯]{1,2})?)", clause_str, re.IGNORECASE)
+            m1 = re.search(r"(?:price|অফার\s*মূল্য|মূল্য|দাম|rate|দর|৳|bdt|প্রাইজ)(?:[^\d০-৯\n\r]{0,25})([0-9০-৯,]+(?:\.[0-9০-৯]{1,2})?)", clause_str, re.IGNORECASE)
             m2 = re.search(r"([0-9০-৯,]+(?:\.[0-9০-৯]{1,2})?)\s*(?:/-|tk|taka|টাকা|bdt)(?:\s|[.,।;!?]|$)", clause_str, re.IGNORECASE)
             
             cand = None
@@ -378,7 +378,7 @@ class AIExtractorService:
             elif m2 and not is_delivery_or_adv_clause:
                 pre_start = max(0, m2.start() - 25)
                 context = clause_str[pre_start:m2.start()].lower()
-                if not re.search(r"\b(delivery|charge|advance|booking|fee)\b|(?:ডেলিভারি|চার্জ|অগ্রিম|বুকিং|ফি)", context):
+                if not re.search(r"\b(delivery|charge|advance|booking|fee)\b|(?:ডেলিভারি|চার্জ|অগ্রিম|বুকিং|ফি(?:\s|[.,।;!?]|$))", context):
                     cand = m2
             if cand:
                 raw_num = cand.group(1).translate(BANGLA_DIGITS_MAP).replace(",", "")
@@ -422,7 +422,7 @@ class AIExtractorService:
 
         # 4. Advance payment
         m_no_adv = re.search(r"(?:no\s+advance\s+(?:needed|required|fee)|zero\s+advance|0\s*advance|অগ্রিম\s*(?:ছাড়াই?\s*(?:অর্ডার|কিনুন|নিতে|পাবেন|অর্ডার\s*করুন)|প্রয়োজন\s*নেই|লাগবে\s*না|নেই)|কোনো\s*অগ্রিম\s*(?:নেই|লাগবে\s*না|ছাড়াই)|no\s*booking\s*fee|free\s*booking)", text, re.IGNORECASE)
-        m_full_adv = re.search(r"(?:full\s+advance|shob\s*taka\s*advance|সব\s*টাকা\s*অগ্রিম|সম্পূর্ণ\s*(?:[^\d০-৯\n\r।.;!?]{0,15})(?:টাকা|মূল্য|পেমেন্ট)\s*(?:আগে|অগ্রিম|বিকাশ)|full\s*payment\s*advance|100%\s*full\s*advance|shob\s*advance|সব\s*টাকা\s*বিকাশ)", text, re.IGNORECASE)
+        m_full_adv = re.search(r"(?:full\s+advance|shob\s*taka\s*advance|সব\s*টাকা\s*অগ্রিম|সম্পূর্ণ\s*(?:[^\d০-৯\n\r।.;!?]{0,15})(?:টাকা|মূল্য|পেমেন্ট)\s*(?:আগে|অগ্রিম|বিকাশ)|পুরো\s*(?:[^\d০-৯\n\r।.;!?]{0,15})(?:টাকা|মূল্য|পেমেন্ট)\s*(?:আগে|অগ্রিম|বিকাশ)|full\s*payment\s*advance|(?:100%|১০০%)\s*(?:full\s*)?(?:advance|payment|পেমেন্ট|অগ্রিম)|shob\s*advance|সব\s*টাকা\s*বিকাশ)", text, re.IGNORECASE)
         m_adv_after = re.search(r"(?:advance|অগ্রিম|বুকিং)(?:[^\d০-৯\n\r।.;!?]{0,50})([0-9০-৯,]{2,7})", text, re.IGNORECASE)
         m_adv_before = re.search(r"([0-9০-৯,]{2,7})\s*(?:/-|tk|taka|টাকা|bdt)?(?:[^\d০-৯\n\r।.;!?]{0,50})(?:advance|অগ্রিম|booking|বুকিং)(?:\s|[.,।;!?]|$)", text, re.IGNORECASE)
 
@@ -436,7 +436,7 @@ class AIExtractorService:
             claims.advance_payment_evidence = m_full_adv.group(0).strip()
             # If explicit amount mentioned in full advance phrase, excluding percentages (e.g. 100%)
             if "%" in m_full_adv.group(0) or "percent" in m_full_adv.group(0).lower() or "শতাংশ" in m_full_adv.group(0):
-                if claims.price:
+                if claims.price is not None:
                     claims.advance_payment_amount = claims.price
             else:
                 m_amt_in_full = re.search(r"([0-9০-৯,]+)", m_full_adv.group(0))

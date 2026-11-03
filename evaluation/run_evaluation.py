@@ -53,7 +53,9 @@ def safe_pct(num: int, denom: int) -> Any:
 
 def run_benchmark(engine: str = "deterministic", dataset: str = "baseline", limit: Optional[int] = None):
     # Resolve dataset file path
-    if dataset == "holdout":
+    if dataset == "frozen":
+        dataset_file = "frozen_dataset.json"
+    elif dataset == "holdout":
         dataset_file = "holdout_dataset.json"
     elif dataset == "baseline":
         dataset_file = "dataset.json"
@@ -315,7 +317,7 @@ def run_benchmark(engine: str = "deterministic", dataset: str = "baseline", limi
             exp_adv_req = expected.get("expected_advance_required")
             if exp_adv_req is not None:
                 advance_evals += 1
-                obs_adv = chat_claims.advance_payment_required or ad_claims.advance_payment_required
+                obs_adv = chat_claims.advance_payment_required if chat_claims.advance_payment_required is not None else ad_claims.advance_payment_required
                 if obs_adv == exp_adv_req:
                     advance_correct += 1
                 else:
@@ -325,7 +327,7 @@ def run_benchmark(engine: str = "deterministic", dataset: str = "baseline", limi
             exp_adv_amt = expected.get("expected_advance_amount")
             if exp_adv_amt is not None:
                 advance_evals += 1
-                obs_amt = chat_claims.advance_payment_amount or ad_claims.advance_payment_amount
+                obs_amt = chat_claims.advance_payment_amount if chat_claims.advance_payment_amount is not None else ad_claims.advance_payment_amount
                 if obs_amt is not None and abs(obs_amt - exp_adv_amt) < 1.0:
                     advance_correct += 1
                 else:
@@ -336,7 +338,8 @@ def run_benchmark(engine: str = "deterministic", dataset: str = "baseline", limi
             exp_adv_purpose = normalize_purpose(expected.get("expected_advance_purpose"))
             if exp_adv_purpose:
                 advance_purpose_evals += 1
-                obs_purpose = normalize_purpose(chat_claims.advance_payment_purpose or ad_claims.advance_payment_purpose)
+                purpose_raw = chat_claims.advance_payment_purpose if chat_claims.advance_payment_purpose is not None else ad_claims.advance_payment_purpose
+                obs_purpose = normalize_purpose(purpose_raw)
                 if obs_purpose == exp_adv_purpose:
                     advance_purpose_correct += 1
                 else:

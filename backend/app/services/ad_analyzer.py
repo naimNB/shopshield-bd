@@ -67,10 +67,13 @@ class AdAnalyzer:
             ev = f" ('{claims.cod_evidence}')" if claims.cod_evidence else ""
             explicit_terms.append(f"Cash on Delivery: Explicitly Denied{ev}")
         if claims.advance_payment_required is True:
-            amt = f" ৳{claims.advance_payment_amount:,.2f}" if claims.advance_payment_amount else ""
+            amt = f" ৳{claims.advance_payment_amount:,.2f}" if claims.advance_payment_amount is not None else ""
             purpose = f" ({claims.advance_payment_purpose})" if claims.advance_payment_purpose else ""
             ev = f" ('{claims.advance_payment_evidence}')" if claims.advance_payment_evidence else ""
             explicit_terms.append(f"Advance Payment Required:{amt}{purpose}{ev}")
+        elif claims.advance_payment_required is False:
+            ev = f" ('{claims.advance_payment_evidence}')" if claims.advance_payment_evidence else ""
+            explicit_terms.append(f"Advance Payment: None Required (Zero Advance){ev}")
         if claims.return_policy_available is True:
             terms = f" - {claims.return_policy_terms}" if claims.return_policy_terms else ""
             ev = f" ('{claims.return_policy_evidence}')" if claims.return_policy_evidence else ""
@@ -188,7 +191,7 @@ class AdAnalyzer:
             buyer_questions.append("ওয়ারেন্টির সুনির্দিষ্ট মেয়াদ কতদিন (যেমন: কত মাস বা বছর) এবং এর আওতাভুক্ত শর্তাবলী কী?")
 
         # Advance mentioned without amount
-        if claims.advance_payment_required is True and not claims.advance_payment_amount:
+        if claims.advance_payment_required is True and claims.advance_payment_amount is None:
             ambiguous_statements.append("Advance payment is requested without stating the exact numerical amount.")
             buyer_questions.append("অর্ডার কনফার্ম করার জন্য অগ্রিম কত টাকা পাঠাতে হবে এবং তা কি শুধুমাত্র কুরিয়ার চার্জ বাবদ?")
 
@@ -199,12 +202,12 @@ class AdAnalyzer:
         # 5. Evaluate Payment Considerations & Warnings
         payment_considerations: List[PaymentWarning] = []
 
-        if claims.advance_payment_required and claims.advance_payment_evidence:
+        if claims.advance_payment_required is True and claims.advance_payment_evidence:
             norm_purpose = (claims.advance_payment_purpose or "").upper()
-            amt_str = f"৳{claims.advance_payment_amount:,.2f}" if claims.advance_payment_amount else "an unspecified amount"
+            amt_str = f"৳{claims.advance_payment_amount:,.2f}" if claims.advance_payment_amount is not None else "an unspecified amount"
 
             if norm_purpose in ("FULL_PRODUCT_PAYMENT", "FULL_PRICE") or (
-                claims.price and claims.advance_payment_amount and abs(claims.advance_payment_amount - claims.price) < 1.0
+                claims.price is not None and claims.advance_payment_amount is not None and abs(claims.advance_payment_amount - claims.price) < 1.0
             ):
                 payment_considerations.append(
                     PaymentWarning(
@@ -449,18 +452,49 @@ class AdAnalyzer:
                     claim_type="advance_payment",
                     field_label="Advance Payment Requirement",
                     status=UnifiedFindingStatus.STATED_CLAIM,
-                    observed_value=claims.advance_payment_amount or "Required",
+                    observed_value=claims.advance_payment_amount if claims.advance_payment_amount is not None else "Required",
                     source_type=SourceType.USER_INPUT,
                     evidence_quote=claims.advance_payment_evidence,
                     retrieval_date=now_iso,
                     verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
                     explanation=(
                         f"Advance payment required: ৳{claims.advance_payment_amount:,.2f} ({claims.advance_payment_purpose or 'UNSPECIFIED'})"
-                        if claims.advance_payment_amount
+                        if claims.advance_payment_amount is not None
                         else f"Advance payment is required ({claims.advance_payment_purpose or 'UNSPECIFIED'})."
                     ),
                     severity=adv_sev,
                     limitations=f"Advance payment stated for {claims.advance_payment_purpose or 'UNSPECIFIED'}; verify recipient credentials before transferring.",
+                )
+            )
+        elif claims.advance_payment_required is False:
+            findings.append(
+                UnifiedFinding(
+                    claim_type="advance_payment",
+                    field_label="Advance Payment Requirement",
+                    status=UnifiedFindingStatus.STATED_CLAIM,
+                    observed_value=0.0,
+                    source_type=SourceType.USER_INPUT,
+                    evidence_quote=claims.advance_payment_evidence,
+                    retrieval_date=now_iso,
+                    verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
+                    explanation="The advertisement explicitly promises zero advance payment (no advance needed / free booking).",
+                    severity="info",
+                    limitations="Verify seller does not request advance payment later in private chat.",
+                )
+            )
+        else:
+            findings.append(
+                UnifiedFinding(
+                    claim_type="advance_payment",
+                    field_label="Advance Payment Requirement",
+                    status=UnifiedFindingStatus.MISSING_INFORMATION,
+                    observed_value=None,
+                    source_type=SourceType.USER_INPUT,
+                    retrieval_date=now_iso,
+                    verification_status=VerificationStatus.USER_PROVIDED_UNVERIFIED,
+                    explanation="Advance payment requirements are not stated in the advertisement.",
+                    severity="medium",
+                    limitations="Inquire whether courier charge advance or full cash on delivery applies.",
                 )
             )
 

@@ -250,6 +250,21 @@ class ComparisonService:
                 severity="high",
             )
 
+        # Check advance required in ad vs waived (zero-advance) in chat
+        if ad.advance_payment_required is True and chat.advance_payment_required is False:
+            return ComparisonItem(
+                field=field,
+                field_label=label,
+                status=ContradictionStatus.NEEDS_REVIEW,
+                ad_evidence=ad.advance_payment_evidence,
+                chat_evidence=chat.advance_payment_evidence,
+                explanation=(
+                    "Advertisement indicated advance payment was required, but seller in chat agreed to waive advance payment. "
+                    "Confirm whether full cash on delivery is accepted."
+                ),
+                severity="low",
+            )
+
         # Both state a numerical advance amount
         if ad.advance_payment_amount is not None and chat.advance_payment_amount is not None:
             diff = abs(ad.advance_payment_amount - chat.advance_payment_amount)
@@ -302,14 +317,37 @@ class ComparisonService:
                 severity="info",
             )
 
-        if ad.advance_payment_required is None and chat.advance_payment_required is None:
+        # If advance was stated in ad but chat didn't mention it
+        if ad.advance_payment_required is not None and chat.advance_payment_required is None:
             return ComparisonItem(
                 field=field,
                 field_label=label,
                 status=ContradictionStatus.INSUFFICIENT_INFORMATION,
                 ad_evidence=ad.advance_payment_evidence,
                 chat_evidence=chat.advance_payment_evidence,
-                explanation="Advance payment terms are not explicitly mentioned in either source.",
+                explanation="The advertisement stated advance payment terms, but advance payment was not discussed in chat.",
+                severity="info",
+            )
+
+        if ad.advance_payment_required is None or chat.advance_payment_required is None:
+            return ComparisonItem(
+                field=field,
+                field_label=label,
+                status=ContradictionStatus.INSUFFICIENT_INFORMATION,
+                ad_evidence=ad.advance_payment_evidence,
+                chat_evidence=chat.advance_payment_evidence,
+                explanation="Advance payment terms are not explicitly mentioned in both sources.",
+                severity="info",
+            )
+
+        if ad.advance_payment_required is False and chat.advance_payment_required is False:
+            return ComparisonItem(
+                field=field,
+                field_label=label,
+                status=ContradictionStatus.CONSISTENT,
+                ad_evidence=ad.advance_payment_evidence,
+                chat_evidence=chat.advance_payment_evidence,
+                explanation="Advance payment requirements are aligned: Both sources indicate zero advance payment is required.",
                 severity="info",
             )
 
@@ -481,6 +519,20 @@ class ComparisonService:
                     "but seller in chat stated there is no warranty provided."
                 ),
                 severity="high",
+            )
+
+        if ad.warranty_available is False and chat.warranty_available is True:
+            return ComparisonItem(
+                field=field,
+                field_label=label,
+                status=ContradictionStatus.NEEDS_REVIEW,
+                ad_evidence=ad.warranty_evidence,
+                chat_evidence=chat.warranty_evidence,
+                explanation=(
+                    "The advertisement indicated no warranty, but seller in chat agreed to provide warranty. "
+                    "Confirm official warranty terms in writing."
+                ),
+                severity="low",
             )
 
         if ad.warranty_terms and chat.warranty_terms:
