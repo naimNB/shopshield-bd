@@ -3,18 +3,71 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
-    background-color: #070d18;
+    background-color: #070c18;
     color: #e2e8f0;
+    font-family: 'Hind Siliguri', 'Inter', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* Bengali script typography enhancement */
+  p, span, li, a, button, input, textarea {
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Accessible focus indicators */
+  :focus-visible {
+    outline: 2px solid #14b8a6;
+    outline-offset: 2px;
   }
 }
 
-/* Subtle glow effects */
-.glow-emerald {
-  box-shadow: 0 0 50px -10px rgba(34, 197, 94, 0.25);
+@layer utilities {
+  /* Subtle, soft card elevation without harsh neon glow */
+  .card-surface {
+    background-color: #0a1224;
+    border: 1px solid #18243e;
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  }
+
+  .card-surface-elevated {
+    background-color: #0e172e;
+    border: 1px solid #233355;
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Custom subtle scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #070c18;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #1e2e52;
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #2a3f6f;
+  }
 }
 
-.glow-card {
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5), 0 0 15px -3px rgba(34, 197, 94, 0.1);
+/* Accessibility: Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

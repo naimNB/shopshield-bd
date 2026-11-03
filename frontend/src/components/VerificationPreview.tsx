@@ -1,241 +1,177 @@
 import React, { useState } from 'react';
-import { FileText, ShieldAlert, CheckCircle2, Info, Eye, Lock, ArrowRight } from 'lucide-react';
-import { API_BASE_URL } from '../config';
+import { FileText, ShieldAlert, CheckCircle2, Lock, ArrowRight, Sparkles, MessageSquare, History } from 'lucide-react';
 
 export const VerificationPreview: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'promise' | 'payment' | 'courier'>('promise');
+  const [activeStep, setActiveStep] = useState<number>(0);
+
+  const steps = [
+    {
+      id: 0,
+      title: "ধাপ ১: বিজ্ঞাপনের প্রাথমিক পরীক্ষা",
+      subtitle: "বিজ্ঞাপনের অফার ও শর্তাবলি স্বয়ংক্রিয়ভাবে এক্সট্রাক্ট করুন",
+      icon: <FileText className="w-5 h-5 text-teal-400" />,
+      tag: "Ad-only Check",
+      sampleInput: "স্মার্ট ওয়াচ অফার মাত্র ১২০০ টাকা। সারা বাংলাদেশে ফ্রি হোম ডেলিভারি ও ক্যাশ অন ডেলিভারি প্রযোজ্য।",
+      findings: [
+        { label: "বিজ্ঞাপিত মূল্য", val: "৳ ১,২০০", status: "STATED_CLAIM", color: "text-emerald-400" },
+        { label: "ক্যাশ অন ডেলিভারি", val: "উপলব্ধ (Available)", status: "STATED_CLAIM", color: "text-emerald-400" },
+        { label: "অনুল্লেখিত শর্ত", val: "ওয়ারেন্টির মেয়াদ নির্দিষ্ট নয়", status: "MISSING_INFORMATION", color: "text-amber-400" },
+      ],
+      buyerTip: "বিজ্ঞাপনে ফ্রি ডেলিভারি লিখলেও বিক্রেতারা চ্যাটে প্রায়ই অগ্রিম ডেলিভারি ফি দাবি করেন।",
+    },
+    {
+      id: 1,
+      title: "ধাপ ২: ইনবক্স চ্যাটে গরমিল শনাক্তকরণ",
+      subtitle: "পাবলিক বিজ্ঞাপনের সাথে প্রাইভেট মেসেজের অমিল চিহ্নিত করুন",
+      icon: <MessageSquare className="w-5 h-5 text-rose-400" />,
+      tag: "Contradiction Detection",
+      sampleInput: "চ্যাটে বিক্রেতা: 'ভাইয়া অফার শেষ, এখন ১৫০০ টাকা। আর ডেলিভারি পেতে হলে সম্পূর্ণ টাকা আগে বিকাশ করতে হবে।'",
+      findings: [
+        { label: "মূল্য গরমিল", val: "বিজ্ঞাপনে ১২০০ ৳ বনাম চ্যাটে ১৫০০ ৳", status: "CONTRADICTION", color: "text-rose-400" },
+        { label: "পেমেন্ট শর্ত পরিবর্তন", val: "সিওডি বাতিল করে ১০০% অগ্রিম দাবি", status: "CONTRADICTION", color: "text-rose-400" },
+        { label: "ঝুঁকি লেভেল", val: "উচ্চ ঝুঁকি (ব্যক্তিগত ওয়ালেটে সম্পূর্ণ অগ্রিম)", status: "HIGH_RISK", color: "text-rose-400" },
+      ],
+      buyerTip: "ব্যক্তিগত নম্বরে সম্পূর্ণ মূল্য কখনোই অগ্রিম পরিশোধ করবেন না। অর্ডার বাতিল করা নিরাপদ।",
+    },
+    {
+      id: 2,
+      title: "ধাপ ৩: পেজ ট্রান্সপারেন্সি ও আর্কাইভ হিস্ট্রি",
+      subtitle: "পেজ তৈরির তারিখ, নাম পরিবর্তন ও ডোমেইন বয়স পরীক্ষা",
+      icon: <History className="w-5 h-5 text-blue-400" />,
+      tag: "Seller Intelligence",
+      sampleInput: "ফেসবুক পেজ ট্রান্সপারেন্সি স্ক্রিনশট ও ডোমেইন লিঙ্ক: daraz.com.bd",
+      findings: [
+        { label: "পেজ বয়স", val: "২০২৬ সালে তৈরি (মাত্র ৩ দিন পূর্বে)", status: "NEEDS_REVIEW", color: "text-amber-400" },
+        { label: "নাম পরিবর্তন", val: "গত ৬ মাসে ৩ বার নাম পরিবর্তিত", status: "NEEDS_REVIEW", color: "text-amber-400" },
+        { label: "আর্কাইভ উপস্থিতি", val: "Wayback Machine এ সংরক্ষিত রেকর্ড নেই", status: "INFO", color: "text-slate-400" },
+      ],
+      buyerTip: "নতুন খোলা বা বারবার নাম পরিবর্তন করা পেজ থেকে কেনাকাটায় সতর্কতা অবলম্বন করুন।",
+    },
+    {
+      id: 3,
+      title: "ধাপ ৪: প্রস্তুত প্রশ্ন বিক্রেতাকে ইনবক্সে পাঠানো",
+      subtitle: "পেমেন্ট করার আগেই লিখিত নিশ্চয়তা গ্রহণ করুন",
+      icon: <ShieldAlert className="w-5 h-5 text-emerald-400" />,
+      tag: "Buyer Questions",
+      sampleInput: "সিস্টেম স্বয়ংক্রিয়ভাবে বিক্রেতাকে পাঠানোর জন্য তৈরি প্রশ্নমালা সরবরাহ করে:",
+      findings: [
+        { label: "প্রশ্ন ১", val: "বিজ্ঞাপনে ১২০০ টাকা বলা হয়েছিল, চ্যাটে ১৫০০ কেন হচ্ছে?", status: "QUESTION", color: "text-teal-300" },
+        { label: "প্রশ্ন ২", val: "ডেলিভারি চার্জের বেশি কোনো টাকা অগ্রিম দেওয়া যাবে কি না?", status: "QUESTION", color: "text-teal-300" },
+        { label: "প্রশ্ন ৩", val: "পণ্য হাতে পেয়ে চেক করে নেওয়ার সুযোগ থাকবে কি?", status: "QUESTION", color: "text-teal-300" },
+      ],
+      buyerTip: "প্রশ্নগুলোর উত্তর ইনবক্সে লিখে রাখলে পরবর্তীতে ভোক্তা অধিকার অধিদপ্তরে অভিযোগ দাখিল সহজ হয়।",
+    },
+  ];
 
   return (
-    <section id="preview" className="py-20 border-t border-slate-800/80 bg-slate-950/60">
+    <section id="preview" className="py-16 sm:py-20 border-t border-slate-800/80 bg-slate-950/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-700 text-xs text-slate-300 font-mono mb-3">
-            <Info className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Task 01 Foundation • Architectural Preview</span>
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-700 text-xs text-slate-300 font-mono mb-3">
+            <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+            <span>লাইভ সিস্টেম ওয়াকথ্রু</span>
           </div>
-          <h2 className="text-3xl font-extrabold text-white tracking-tight sm:text-4xl">
-            Interactive Platform Preview
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight font-sans">
+            কীভাবে কাজ করে শপশিল্ড বিডি?
           </h2>
-          <p className="mt-3 text-slate-400 text-sm">
-            Experience the intended workflow of ShopShield BD. In accordance with project safety guidelines,
-            actual AI analysis and model inference will be integrated in upcoming tasks without generating
-            misleading or fabricated scores.
+          <p className="mt-3 text-slate-300 text-sm sm:text-base leading-relaxed">
+            কোনো জটিলতা ছাড়া মাত্র ৪টি সহজ ধাপে অনলাইন শপিংয়ের নিরাপত্তা ও সত্যতা যাচাই করুন।
           </p>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex p-1 rounded-xl bg-slate-900 border border-slate-800">
+        {/* Step Selector Tabs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 max-w-4xl mx-auto mb-8">
+          {steps.map((s, idx) => (
             <button
-              onClick={() => setActiveTab('promise')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                activeTab === 'promise'
-                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                  : 'text-slate-400 hover:text-white'
+              key={idx}
+              onClick={() => setActiveStep(idx)}
+              className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                activeStep === idx
+                  ? 'bg-slate-900 border-teal-500 shadow-lg shadow-teal-500/10'
+                  : 'bg-slate-900/40 border-slate-800 hover:border-slate-700 text-slate-400'
               }`}
             >
-              <FileText className="w-4 h-4" />
-              <span>Purchase Promise Pass</span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-mono text-slate-400">ধাপ 0{idx + 1}</span>
+                {s.icon}
+              </div>
+              <span className={`text-xs font-semibold block ${activeStep === idx ? 'text-white' : 'text-slate-300'}`}>
+                {s.tag}
+              </span>
             </button>
-
-            <button
-              onClick={() => setActiveTab('payment')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                activeTab === 'payment'
-                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Lock className="w-4 h-4" />
-              <span>Payment Safety Rules</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('courier')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 ${
-                activeTab === 'courier'
-                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Eye className="w-4 h-4" />
-              <span>Courier Parity Check</span>
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* Tab Content */}
-        <div className="max-w-4xl mx-auto rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden">
-          {/* Header Bar */}
-          <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        {/* Active Step Interactive Card */}
+        <div className="max-w-4xl mx-auto rounded-2xl bg-slate-900/90 border border-slate-800 shadow-2xl overflow-hidden">
+          {/* Card Header Bar */}
+          <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center space-x-2">
-              <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
-              <span className="text-xs font-mono text-slate-400 ml-2">shopshield://preview-module</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
+              <span className="text-xs font-mono text-slate-400 ml-2">shopshield://workflow/step-0{activeStep + 1}</span>
             </div>
-            <div className="text-xs font-mono text-slate-400">
-              State: <span className="text-emerald-400">Verified Architecture</span>
-            </div>
-          </div>
-
-          <div className="p-6 md:p-8">
-            {activeTab === 'promise' && (
-              <div className="space-y-6">
-                <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">Purchase Promise Certificate</h3>
-                    <p className="text-xs text-slate-400">Codifying verbal chat agreements into structured terms</p>
-                  </div>
-                  <span className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono">
-                    Token: SSP-2026-DH-0842
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                    <span className="text-slate-500 uppercase tracking-wider text-[10px]">Product & Seller</span>
-                    <div className="text-slate-200 font-semibold text-sm">Mechanical Gaming Keyboard (RGB)</div>
-                    <div className="text-slate-400">Seller: Dhaka Tech Gadget Hub (F-Commerce)</div>
-                    <div className="text-slate-400">Listed Price: ৳ 3,850 BDT</div>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                    <span className="text-slate-500 uppercase tracking-wider text-[10px]">Warranty & Return Terms</span>
-                    <div className="flex items-center space-x-1 text-emerald-400 font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>1-Year Official Replacement Warranty</span>
-                    </div>
-                    <div className="text-slate-400">Return Window: 7 Days for Factory Defects</div>
-                    <div className="text-slate-400">Unboxing Inspection: Allowed before courier release</div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-                  <div className="flex items-center space-x-2 text-slate-300 font-medium text-xs mb-2">
-                    <Info className="w-4 h-4 text-emerald-400" />
-                    <span>How this protects the buyer:</span>
-                  </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Once codified, this token serves as irrefutable written proof of the seller's chat promises.
-                    If the seller attempts to deliver a modified or unbranded substitute, the buyer has immediate
-                    grounds to reject the consignment without forfeiture of delivery deposit.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'payment' && (
-              <div className="space-y-6">
-                <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">Payment Safety Advisory Rules</h3>
-                    <p className="text-xs text-slate-400">Enforcing the Golden Rules of Bangladesh Online Commerce</p>
-                  </div>
-                  <span className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs font-mono">
-                    Standard Rulebook v1.0
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-start space-x-3">
-                    <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                    <div className="text-xs">
-                      <strong className="text-white block font-medium mb-0.5">
-                        Rule 1: The ৳150 Delivery-Fee Advance Cap
-                      </strong>
-                      <span className="text-slate-400">
-                        Never transfer more than standard courier charges (৳130–৳150 inside Dhaka, ৳180–৳200 outside Dhaka)
-                        as an advance to a personal bKash/Nagad number. If a seller demands 50% or 100% advance for common goods,
-                        flag as high risk.
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-start space-x-3">
-                    <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                    <div className="text-xs">
-                      <strong className="text-white block font-medium mb-0.5">
-                        Rule 2: Merchant Payment Gateway vs Personal 'Send Money'
-                      </strong>
-                      <span className="text-slate-400">
-                        Authorized businesses provide bKash 'Payment' (01XXXXXXXXX) merchant accounts or payment links. Personal
-                        'Send Money' transactions carry no dispute reversibility through standard consumer banking channels.
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-start space-x-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                    <div className="text-xs">
-                      <strong className="text-white block font-medium mb-0.5">
-                        Rule 3: Cash on Delivery (COD) with Open Box Inspection
-                      </strong>
-                      <span className="text-slate-400">
-                        Instruct the courier delivery partner that the parcel includes an open-box inspection condition.
-                        Always record an uninterrupted video while unpacking the package.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'courier' && (
-              <div className="space-y-6">
-                <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">Courier Parity Checklist</h3>
-                    <p className="text-xs text-slate-400">Cross-checking consignment claims against real logistics networks</p>
-                  </div>
-                  <span className="px-2.5 py-1 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-xs font-mono">
-                    Integrated Logistics
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-cyan-400 font-bold mb-1">Steadfast Courier</div>
-                    <div className="text-slate-400">Consignment ID format validation</div>
-                    <div className="text-slate-500 text-[10px] mt-2">API Integration: Scheduled</div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-rose-400 font-bold mb-1">Pathao Courier</div>
-                    <div className="text-slate-400">Parcel weight & recipient match</div>
-                    <div className="text-slate-500 text-[10px] mt-2">API Integration: Scheduled</div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-amber-400 font-bold mb-1">RedX Logistics</div>
-                    <div className="text-slate-400">Real-time status milestone audit</div>
-                    <div className="text-slate-500 text-[10px] mt-2">API Integration: Scheduled</div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
-                  <strong className="text-white block mb-1">Anti-Spoofing Verification:</strong>
-                  Scammers frequently share forged screenshots of courier slips created via graphic editors. ShopShield BD's
-                  logistics verification engine pings the official courier tracking gateway to confirm actual parcel custody.
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Footer banner inside card */}
-          <div className="px-6 py-4 bg-slate-950/90 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
-            <span className="font-mono">
-              Next Step: Multimodal AI Parser (Task 02)
+            <span className="text-xs font-mono text-teal-400 bg-teal-950/60 px-2 py-0.5 rounded border border-teal-900/60">
+              {steps[activeStep].tag}
             </span>
-            <a
-              href={`${API_BASE_URL}/docs`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center space-x-1"
-            >
-              <span>Explore Backend Endpoints</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </a>
+          </div>
+
+          <div className="p-6 sm:p-8 space-y-6">
+            <div>
+              <h3 className="text-lg sm:text-xl font-bold text-white font-sans flex items-center gap-2">
+                {steps[activeStep].icon}
+                <span>{steps[activeStep].title}</span>
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                {steps[activeStep].subtitle}
+              </p>
+            </div>
+
+            {/* Input simulation */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">ইনপুট টেক্সট / প্রমাণ:</span>
+              <p className="text-xs sm:text-sm text-slate-200 font-sans italic leading-relaxed">
+                &ldquo;{steps[activeStep].sampleInput}&rdquo;
+              </p>
+            </div>
+
+            {/* Simulated Findings */}
+            <div className="space-y-2.5">
+              <span className="text-xs font-semibold text-slate-300 block font-sans">সিস্টেম সনাক্তকরণ ফলাফল:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                {steps[activeStep].findings.map((f, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-mono text-slate-400 block">{f.label}</span>
+                    <span className={`font-semibold block ${f.color}`}>{f.val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Buyer Advice Banner */}
+            <div className="p-4 rounded-xl bg-teal-950/20 border border-teal-800/40 flex items-start gap-3 text-xs">
+              <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-semibold text-teal-300 block">ক্রেতার জন্য করণীয় পরামর্শ:</span>
+                <p className="text-slate-300 leading-relaxed">{steps[activeStep].buyerTip}</p>
+              </div>
+            </div>
+
+            {/* Action to Jump to Tool */}
+            <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                <Lock className="w-3.5 h-3.5 text-teal-400" />
+                <span>ব্যক্তিগত গোপনীয়তা ১০০% সুরক্ষিত • কোনো লগিং নেই</span>
+              </div>
+              <a
+                href="#analyzer"
+                className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-teal-500 hover:bg-teal-400 text-white transition-colors flex items-center gap-1.5 shadow-md shadow-teal-500/20"
+              >
+                <span>নিজে যাচাই করে দেখুন</span>
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
           </div>
         </div>
       </div>

@@ -89,29 +89,29 @@ export const SourceAttribution: React.FC<SourceAttributionProps> = ({
   return (
     <div className={`flex flex-wrap items-center gap-2 text-xs ${className}`}>
       {/* Source origin badge */}
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-        <Icon className="w-3.5 h-3.5 text-slate-400" />
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
+        <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
         <span className="font-medium">{sourceInfo.labelBn}</span>
-        <span className="text-[10px] text-slate-400 hidden sm:inline">({sourceInfo.labelEn})</span>
+        <span className="text-[11px] text-slate-400 hidden sm:inline">({sourceInfo.labelEn})</span>
       </span>
 
       {/* Verification status badge */}
       {isIndependent && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-          <Shield className="w-3 h-3" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">
+          <Shield className="w-3.5 h-3.5 shrink-0 text-teal-400" aria-hidden="true" />
           <span>স্বাধীন রেকর্ড (Independently Retrieved)</span>
         </span>
       )}
       {isUnverified && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
-          <AlertCircle className="w-3 h-3" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/30">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" aria-hidden="true" />
           <span>অযাচাইকৃত স্ক্রিনশট দাবি (Self-Reported)</span>
         </span>
       )}
 
       {/* Retrieval timestamp */}
       {formattedTime && (
-        <span className="text-slate-400 font-mono text-[11px]">
+        <span className="text-slate-400 font-mono text-[11px] ml-1">
           যাচাই: {formattedTime}
         </span>
       )}
@@ -122,10 +122,11 @@ export const SourceAttribution: React.FC<SourceAttributionProps> = ({
           href={sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-0.5 text-emerald-400 hover:text-emerald-300 underline underline-offset-2 transition-colors ml-auto"
+          aria-label="আর্কাইভ স্ন্যাপশটের উৎস লিঙ্কটি নতুন ট্যাবে খুলুন"
+          className="inline-flex items-center gap-1 text-teal-400 hover:text-teal-300 underline underline-offset-2 transition-colors ml-auto text-xs py-0.5"
         >
           <span>আর্কাইভ লিঙ্ক</span>
-          <ExternalLink className="w-3 h-3" />
+          <ExternalLink className="w-3 h-3 shrink-0" aria-hidden="true" />
         </a>
       )}
     </div>
