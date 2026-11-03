@@ -47,6 +47,7 @@ class SellerHistoryService:
 
         # 1. Process Page Transparency Data if available
         if transparency_data:
+            transparency_data = self.transparency_service.validate_transparency_evidence(transparency_data)
             findings, questions = self.transparency_service.build_findings_and_questions(transparency_data)
             for f in findings:
                 if f.verification_status == VerificationStatus.INDEPENDENTLY_RETRIEVED:
