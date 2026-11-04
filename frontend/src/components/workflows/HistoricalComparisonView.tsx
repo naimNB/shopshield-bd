@@ -120,7 +120,7 @@ export const HistoricalComparisonView: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header Banner */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-3">
+      <div className="bg-[#0f1728] border border-[#232f48] rounded-2xl p-6 sm:p-8 space-y-5 shadow-xs">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center">
             <Clock className="w-5 h-5" />
