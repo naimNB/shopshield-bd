@@ -155,7 +155,7 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
       : results?.buyer_questions_bangla || [];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
+    <div className="max-w-4xl mx-auto space-y-6 sm:space-y-7">
       {/* Input Section */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-7 space-y-5">
         <div>
