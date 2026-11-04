@@ -70,10 +70,10 @@ export const BuyerVerificationHub: React.FC = () => {
   };
 
   return (
-    <section id="analyzer" className="py-12 sm:py-16 bg-[#070c18] border-t border-slate-800/80">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-8">
+    <section id="analyzer" className="py-10 sm:py-12 bg-[#0a1020] border-t border-[#253047]/75 scroll-mt-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-7">
         {/* Simple Question Header */}
-        <div className="text-center max-w-xl mx-auto space-y-2">
+        <div className="text-center max-w-2xl mx-auto space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-sans tracking-tight">
             {t('navVerify')} — {t('tabAdCheck')} / {t('tabAdVsChat')}
           </h2>
@@ -86,7 +86,7 @@ export const BuyerVerificationHub: React.FC = () => {
         <div
           role="tablist"
           aria-label="Verification tabs"
-          className="flex flex-col sm:flex-row items-center justify-center gap-2 p-1.5 rounded-2xl bg-slate-900/90 border border-slate-800 max-w-2xl mx-auto w-full"
+          className="flex flex-col sm:flex-row items-center justify-center gap-2 p-1.5 rounded-2xl bg-[#121b2e] border border-[#2a3650] max-w-4xl mx-auto w-full"
         >
           {choices.map((choice, idx) => {
             const isActive = activeTab === choice.id;
