@@ -24,9 +24,9 @@ export const AboutSection: React.FC = () => {
   ];
 
   return (
-    <section id="about" className="py-16 sm:py-24 border-t border-slate-800/80">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
+    <section id="about" className="py-12 sm:py-16 border-t border-[#253047]/75 bg-[#0a1020]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-sans tracking-tight">
             {t('aboutHeading')}
           </h2>
@@ -35,13 +35,13 @@ export const AboutSection: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           {principles.map((item, idx) => {
             const Icon = item.icon;
             return (
               <div
                 key={idx}
-                className="rounded-2xl bg-slate-900/40 border border-slate-800/70 p-6 sm:p-7 space-y-3"
+                className="rounded-2xl bg-[#111b2e] border border-[#29364f] p-5 sm:p-6 space-y-3"
               >
                 <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center">
                   <Icon className="w-5 h-5" aria-hidden="true" />
