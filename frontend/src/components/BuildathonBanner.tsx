@@ -5,11 +5,11 @@ export const BuildathonBanner: React.FC = () => (
     href="https://yunet-aignite26.devpost.com/"
     target="_blank"
     rel="noopener noreferrer"
-    className="inline-flex items-center justify-center rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 transition-opacity hover:opacity-90"
+    className="block w-full max-w-[1600px] mx-auto rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 hover:opacity-95 transition-opacity"
     aria-label="Built For Ostad Presents YUNet AIgnite Buildathon 2026 — official Devpost event"
     title="Built For Ostad Presents YUNet AIgnite Buildathon 2026"
   >
-    <picture>
+    <picture className="flex w-full items-center justify-center">
       <source srcSet="/assets/built-for-aignite-2026.webp" type="image/webp" />
       <img
         src="/assets/built-for-aignite-2026.png"
@@ -18,7 +18,7 @@ export const BuildathonBanner: React.FC = () => (
         height={679}
         loading="eager"
         decoding="async"
-        className="block h-14 sm:h-16 w-auto max-w-[90vw] object-contain rounded-xl"
+        className="block w-full h-auto sm:h-[220px] lg:h-[300px] object-contain"
       />
     </picture>
   </a>
