@@ -1,14 +1,15 @@
 import React from 'react';
 import { ArrowDown } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { BuildathonBanner } from './BuildathonBanner';
 
 export const Hero: React.FC = () => {
   const { t } = useLanguage();
 
   return (
-    <section className="py-12 sm:py-16 text-center max-w-4xl mx-auto px-4 sm:px-6">
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-semibold mb-4">
-        {t('heroBadge')}
+    <section className="py-10 sm:py-14 text-center max-w-4xl mx-auto px-4 sm:px-6">
+      <div className="flex justify-center mb-5">
+        <BuildathonBanner />
       </div>
 
       <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white font-sans leading-tight">
