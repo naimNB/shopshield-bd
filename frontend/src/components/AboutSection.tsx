@@ -13,12 +13,12 @@ export const AboutSection: React.FC = () => {
     },
     {
       title: t('aboutPill3'),
-      desc: 'আপনার আপলোড করা স্ক্রিনশট বা চ্যাট সার্ভারে স্থায়ীভাবে জমা রাখা হয় না। মেমোরিতে প্রসেসিং শেষ হওয়ার সাথে সাথে মুছে ফেলা হয়।',
+      desc: t('aboutPrivacyDesc'),
       icon: Lock,
     },
     {
       title: t('aboutPill1'),
-      desc: 'অনলাইন ও সোশ্যাল কমার্সে সাধারণ ক্রেতাদের আর্থিক নিরাপত্তা ও অধিকার রক্ষার একটি উন্মুক্ত প্রযুক্তি উদ্যোগ।',
+      desc: t('aboutOpenSourceDesc'),
       icon: Scale,
     },
   ];

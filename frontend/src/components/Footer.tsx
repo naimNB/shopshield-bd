@@ -38,7 +38,7 @@ export const Footer: React.FC = () => {
           {/* Endpoints & Links */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-200 mb-3 font-sans">
-              ডেভেলপার এপিআই
+              {t('footerDeveloperApi')}
             </h4>
             <ul className="space-y-2 text-xs font-mono">
               <li>
@@ -80,7 +80,7 @@ export const Footer: React.FC = () => {
           {/* Hackathon Context */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-200 mb-3 font-sans">
-              হ্যাকাতন তথ্য
+              {t('footerHackathonInfo')}
             </h4>
             <ul className="space-y-2 text-xs">
               <li>

@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import type { UnifiedFindingStatus, TemporalChangeStatus } from '../../types/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface EvidenceBadgeProps {
   status: UnifiedFindingStatus | TemporalChangeStatus | 'CONSISTENT' | 'INSUFFICIENT_INFORMATION' | string;
@@ -133,6 +134,7 @@ const BADGE_CONFIG: Record<string, BadgeConfig> = {
 };
 
 export const EvidenceBadge: React.FC<EvidenceBadgeProps> = ({ status, size = 'md' }) => {
+  const { language } = useLanguage();
   const config = BADGE_CONFIG[status] || {
     labelBn: status,
     labelEn: status,
@@ -152,8 +154,7 @@ export const EvidenceBadge: React.FC<EvidenceBadgeProps> = ({ status, size = 'md
       }`}
     >
       <Icon className={isSm ? 'w-3.5 h-3.5' : 'w-4 h-4 shrink-0'} aria-hidden="true" />
-      <span>{config.labelBn}</span>
-      <span className="text-[11px] opacity-75 font-mono hidden sm:inline">({config.labelEn})</span>
+      <span>{language === 'bn' ? config.labelBn : config.labelEn}</span>
     </span>
   );
 };

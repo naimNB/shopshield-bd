@@ -25,7 +25,7 @@ export interface ScreenshotUploaderProps {
 
 export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
   label,
-  helperText = 'ফেসবুক পোস্ট, চ্যাট বা রসিদের স্ক্রিনশট আপলোড করুন (PNG, JPG, WebP - সর্বোচ্চ ৫ মেগাবাইট)',
+  helperText,
   sourceType = 'advertisement',
   existingText = '',
   onConfirmText,
@@ -33,6 +33,12 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
   className = '',
 }) => {
   const { language } = useLanguage();
+  const defaultHelper =
+    language === 'bn'
+      ? 'ফেসবুক পোস্ট, চ্যাট বা রসিদের স্ক্রিনশট আপলোড করুন (PNG, JPG, WebP - সর্বোচ্চ ৫ মেগাবাইট)'
+      : 'Upload screenshot from Facebook, Messenger, or chat (PNG, JPG, WebP - up to 5 MB)';
+  const actualHelperText = helperText ?? defaultHelper;
+
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -61,11 +67,19 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
   const handleFileChange = (selectedFile: File) => {
     const validMimes = ['image/png', 'image/jpeg', 'image/webp'];
     if (!validMimes.includes(selectedFile.type.toLowerCase())) {
-      setError('অনুগ্রহ করে সঠিক ফরম্যাটের ছবি আপলোড করুন (PNG, JPG বা WebP)।');
+      setError(
+        language === 'bn'
+          ? 'অনুগ্রহ করে সঠিক ফরম্যাটের ছবি আপলোড করুন (PNG, JPG বা WebP)।'
+          : 'Please upload an image in supported format (PNG, JPG, or WebP).'
+      );
       return;
     }
     if (selectedFile.size > 5 * 1024 * 1024) {
-      setError('ছবির সাইজ ৫ মেগাবাইটের কম হতে হবে। অনুগ্রহ করে ছোট ছবি আপলোড করুন।');
+      setError(
+        language === 'bn'
+          ? 'ছবির সাইজ ৫ মেগাবাইটের কম হতে হবে। অনুগ্রহ করে ছোট ছবি আপলোড করুন।'
+          : 'Image file size must be less than 5 MB. Please upload a smaller image.'
+      );
       return;
     }
 
@@ -108,14 +122,23 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
       setExtractedText(text);
       setEditableText(text);
       if (!text.trim()) {
-        setError('স্ক্রিনশটে কোনো দৃশ্যমান টেক্সট সনাক্ত হয়নি। পরিষ্কার ছবি দিয়ে পুনরায় চেষ্টা করুন।');
+        setError(
+          language === 'bn'
+            ? 'স্ক্রিনশটে কোনো দৃশ্যমান টেক্সট সনাক্ত হয়নি। পরিষ্কার ছবি দিয়ে পুনরায় চেষ্টা করুন।'
+            : 'No readable text was detected in the screenshot. Please try again with a clearer image.'
+        );
       }
     } catch (err: unknown) {
       if (currentId !== requestIdRef.current) return;
       if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
         return;
       }
-      const msg = err instanceof Error ? err.message : 'স্ক্রিনশট থেকে টেক্সট এক্সট্রাকশন ব্যর্থ হয়েছে।';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : language === 'bn'
+          ? 'স্ক্রিনশট থেকে টেক্সট এক্সট্রাকশন ব্যর্থ হয়েছে।'
+          : 'Screenshot text extraction failed.';
       setError(msg);
     } finally {
       if (currentId === requestIdRef.current) {
@@ -169,10 +192,10 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
             type="button"
             onClick={handleClear}
             className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-rose-950/20 focus-visible:ring-2 focus-visible:ring-rose-400"
-            aria-label="আপলোড করা স্ক্রিনশট মুছে ফেলুন"
+            aria-label={language === 'bn' ? 'আপলোড করা স্ক্রিনশট মুছে ফেলুন' : 'Remove uploaded screenshot'}
           >
             <X className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>মুছে ফেলুন</span>
+            <span>{language === 'bn' ? 'মুছে ফেলুন' : 'Remove'}</span>
           </button>
         )}
       </div>
@@ -194,7 +217,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
             if (e.dataTransfer.files?.[0]) handleFileChange(e.dataTransfer.files[0]);
           }}
           className="border border-dashed border-slate-700 hover:border-teal-500/60 rounded-xl p-4 sm:p-5 text-center cursor-pointer bg-slate-950/40 hover:bg-slate-900/60 transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
-          aria-label="স্ক্রিনশট আপলোড ড্রপজোন"
+          aria-label={language === 'bn' ? 'স্ক্রিনশট আপলোড ড্রপজোন' : 'Screenshot upload dropzone'}
         >
           <input
             ref={fileInputRef}
@@ -211,7 +234,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
           <p className="text-xs sm:text-sm font-semibold text-slate-200 group-hover:text-white font-sans">
             {language === 'bn' ? 'স্ক্রিনশট নির্বাচন করতে ক্লিক করুন বা টেনে আনুন' : 'Click or drag & drop to choose screenshot'}
           </p>
-          <p className="text-xs text-slate-400 mt-1 font-sans">{helperText}</p>
+          <p className="text-xs text-slate-400 mt-1 font-sans">{actualHelperText}</p>
         </div>
       ) : (
         <div className="rounded-xl border border-slate-800 bg-[#0a1224] p-3 sm:p-3.5 space-y-3">
@@ -281,7 +304,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                 onClick={() => performOcr(file)}
                 className="text-rose-200 hover:text-white underline font-medium shrink-0 ml-2"
               >
-                পুনরায় চেষ্টা করুন
+                {language === 'bn' ? 'পুনরায় চেষ্টা করুন' : 'Retry'}
               </button>
             </div>
           )}
@@ -292,10 +315,14 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
               <div className="flex items-center justify-between text-xs text-slate-300">
                 <span className="flex items-center gap-1 font-mono text-[11px] text-teal-300">
                   <Sparkles className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                  <span>OCR এক্সট্রাক্ট করা টেক্সট ({editableText.length} অক্ষর):</span>
+                  <span>
+                    {language === 'bn'
+                      ? `OCR এক্সট্রাক্ট করা টেক্সট (${editableText.length} অক্ষর):`
+                      : `Extracted Text (${editableText.length} chars):`}
+                  </span>
                 </span>
                 <span className="text-[11px] text-slate-400 font-sans">
-                  প্রয়োজনে সম্পাদনা করুন
+                  {language === 'bn' ? 'প্রয়োজনে সম্পাদনা করুন' : 'Edit if needed'}
                 </span>
               </div>
 
@@ -307,9 +334,9 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                   setAppliedMode(null);
                 }}
                 rows={3}
-                aria-label="OCR থেকে প্রাপ্ত টেক্সট সম্পাদনা করুন"
+                aria-label={language === 'bn' ? 'OCR থেকে প্রাপ্ত টেক্সট সম্পাদনা করুন' : 'Edit extracted text'}
                 className="w-full text-xs font-mono bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-teal-500 focus-visible:ring-2 focus-visible:ring-teal-400 leading-relaxed"
-                placeholder="এক্সট্রাক্ট করা টেক্সট..."
+                placeholder={language === 'bn' ? 'এক্সট্রাক্ট করা টেক্সট...' : 'Extracted text...'}
               />
 
               {/* Confirmation Buttons */}
@@ -323,7 +350,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                       className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-teal-200 border border-slate-700 text-xs font-semibold transition-colors flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40 min-h-[36px]"
                     >
                       <PlusCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>{language === 'bn' ? 'শেষে যুক্ত করুন (Append)' : 'Append'}</span>
+                      <span>{language === 'bn' ? 'শেষে যুক্ত করুন' : 'Append'}</span>
                     </button>
                     <button
                       type="button"
@@ -332,7 +359,7 @@ export const ScreenshotUploader: React.FC<ScreenshotUploaderProps> = ({
                       className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40 min-h-[36px]"
                     >
                       <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>{language === 'bn' ? 'প্রতিস্থাপন করুন (Replace)' : 'Replace'}</span>
+                      <span>{language === 'bn' ? 'প্রতিস্থাপন করুন' : 'Replace'}</span>
                     </button>
                   </>
                 ) : (

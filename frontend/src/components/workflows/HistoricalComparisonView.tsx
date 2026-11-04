@@ -14,32 +14,40 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import type { CompareHistoryResponse, TemporalFieldComparison } from '../../types/api';
+import { useLanguage } from '../../context/LanguageContext';
 import { EvidenceBadge } from '../shared/EvidenceBadge';
 import { BuyerQuestionsCard } from '../shared/BuyerQuestionsCard';
 import { LoadingState, ErrorState, EmptyState } from '../shared/StatusState';
 
 const SAMPLE_COMPARISONS = [
   {
-    title: 'দারাজ বাংলাদেশ (Daraz BD)',
+    titleBn: 'দারাজ বাংলাদেশ (Daraz BD)',
+    titleEn: 'Daraz Bangladesh',
     url: 'https://daraz.com.bd',
     path: '',
-    note: 'বৃহৎ ই-কমার্স প্ল্যাটফর্মের হোমপেজ ও পলিসি হিস্টোরি',
+    noteBn: 'বৃহৎ ই-কমার্স প্ল্যাটফর্মের হোমপেজ ও পলিসি হিস্টোরি',
+    noteEn: 'E-commerce platform homepage & policy archive',
   },
   {
-    title: 'চালডাল গ্রোসারি (Chaldal)',
+    titleBn: 'চালডাল গ্রোসারি (Chaldal)',
+    titleEn: 'Chaldal Grocery',
     url: 'https://chaldal.com',
     path: '',
-    note: 'ডেলিভারি ও ক্যাশ অন ডেলিভারি হিস্টোরিক্যাল রেকর্ড',
+    noteBn: 'ডেলিভারি ও ক্যাশ অন ডেলিভারি হিস্টোরিক্যাল রেকর্ড',
+    noteEn: 'Delivery and Cash on Delivery historical records',
   },
   {
-    title: 'রকমারি ডট কম (Rokomari)',
+    titleBn: 'রকমারি ডট কম (Rokomari)',
+    titleEn: 'Rokomari Books',
     url: 'https://rokomari.com',
     path: '',
-    note: 'দীর্ঘমেয়াদী আর্কাইভ কভারেজ এবং পরিবর্তন ট্র্যাকিং',
+    noteBn: 'দীর্ঘমেয়াদী আর্কাইভ কভারেজ এবং পরিবর্তন ট্র্যাকিং',
+    noteEn: 'Long-term archive coverage and policy tracking',
   },
 ];
 
 export const HistoricalComparisonView: React.FC = () => {
+  const { language } = useLanguage();
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [pagePath, setPagePath] = useState('');
   const [loading, setLoading] = useState(false);
@@ -60,7 +68,11 @@ export const HistoricalComparisonView: React.FC = () => {
   const handleCompare = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!websiteUrl.trim()) {
-      setError('অনুগ্রহ করে একটি ওয়েবসাইটের লিঙ্ক দিন (যেমন: https://daraz.com.bd)।');
+      setError(
+        language === 'bn'
+          ? 'অনুগ্রহ করে একটি ওয়েবসাইটের লিঙ্ক দিন (যেমন: https://daraz.com.bd)।'
+          : 'Please enter a website URL (e.g., https://daraz.com.bd).'
+      );
       return;
     }
 
@@ -87,7 +99,12 @@ export const HistoricalComparisonView: React.FC = () => {
         if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('বাতিল'))) {
           return;
         }
-        const msg = err instanceof Error ? err.message : 'ঐতিহাসিক তুলনা সম্পন্ন করা সম্ভব হয়নি।';
+        const msg =
+          err instanceof Error
+            ? err.message
+            : language === 'bn'
+            ? 'ঐতিহাসিক তুলনা সম্পন্ন করা সম্ভব হয়নি।'
+            : 'Historical comparison could not be completed.';
         setError(msg);
       }
     } finally {
@@ -127,17 +144,21 @@ export const HistoricalComparisonView: React.FC = () => {
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-slate-100 font-sans">
-              ঐতিহাসিক নীতিমালা ও মূল্য পরিবর্তন (Policy & Price Evolution)
+              {language === 'bn' ? 'ঐতিহাসিক নীতিমালা ও মূল্য পরিবর্তন' : 'Historical Policy & Price Evolution'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400">
-              ইন্টারনেট আর্কাইভের সংরক্ষিত স্ন্যাপশট তুলনা করে রিটার্ন পলিসি, ওয়ারেন্টি ও মূল্যের পরিবর্তন পর্যবেক্ষণ করুন
+              {language === 'bn'
+                ? 'ইন্টারনেট আর্কাইভের সংরক্ষিত স্ন্যাপশট তুলনা করে রিটার্ন পলিসি, ওয়ারেন্টি ও মূল্যের পরিবর্তন পর্যবেক্ষণ করুন'
+                : 'Compare archived internet snapshots to detect changes in return policies, warranties, and pricing.'}
             </p>
           </div>
         </div>
 
         {/* Sample Loaders */}
         <div className="pt-2 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-400 font-medium">নমুনা ওয়েবসাইট:</span>
+          <span className="text-xs text-slate-400 font-medium">
+            {language === 'bn' ? 'নমুনা ওয়েবসাইট:' : 'Sample Websites:'}
+          </span>
           {SAMPLE_COMPARISONS.map((sample, idx) => (
             <button
               key={idx}
@@ -145,7 +166,7 @@ export const HistoricalComparisonView: React.FC = () => {
               onClick={() => loadSample(sample)}
               className="px-2.5 py-1 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
             >
-              {sample.title}
+              {language === 'bn' ? sample.titleBn : sample.titleEn}
             </button>
           ))}
         </div>
@@ -157,13 +178,13 @@ export const HistoricalComparisonView: React.FC = () => {
           <div className="md:col-span-2 space-y-1.5">
             <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
               <FileText className="w-4 h-4 text-teal-400" />
-              <span>ওয়েবসাইট বা পেজের URL</span>
+              <span>{language === 'bn' ? 'ওয়েবসাইট বা পেজের URL' : 'Website or Page URL'}</span>
             </label>
             <input
               type="url"
               value={websiteUrl}
               onChange={(e) => setWebsiteUrl(e.target.value)}
-              placeholder="https://daraz.com.bd অথবা https://example.com/refund"
+              placeholder={language === 'bn' ? 'https://daraz.com.bd অথবা https://example.com/refund' : 'https://daraz.com.bd or https://example.com/refund'}
               required
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500 transition-colors"
             />
@@ -172,7 +193,7 @@ export const HistoricalComparisonView: React.FC = () => {
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-slate-400" />
-              <span>নির্দিষ্ট পেজ পাথ (ঐচ্ছিক)</span>
+              <span>{language === 'bn' ? 'নির্দিষ্ট পেজ পাথ (ঐচ্ছিক)' : 'Specific Page Path (Optional)'}</span>
             </label>
             <input
               type="text"
@@ -186,7 +207,9 @@ export const HistoricalComparisonView: React.FC = () => {
 
         <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80">
           <p className="text-[11px] text-slate-400">
-            Wayback Machine CDX এ সংরক্ষিত ভিন্ন ভিন্ন সময়ের দুটি স্ন্যাপশট এনে তুলনা করা হয়।
+            {language === 'bn'
+              ? 'Wayback Machine CDX এ সংরক্ষিত ভিন্ন ভিন্ন সময়ের দুটি স্ন্যাপশট এনে তুলনা করা হয়।'
+              : 'Two distinct snapshots retrieved from Wayback Machine CDX are compared.'}
           </p>
 
           <div className="flex items-center gap-3">
@@ -197,7 +220,7 @@ export const HistoricalComparisonView: React.FC = () => {
                 className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex items-center gap-1.5"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>রিসেট</span>
+                <span>{language === 'bn' ? 'রিসেট' : 'Reset'}</span>
               </button>
             )}
 
@@ -207,7 +230,7 @@ export const HistoricalComparisonView: React.FC = () => {
               className="px-6 py-2.5 rounded-xl font-semibold text-sm bg-teal-600 hover:bg-teal-500 text-white shadow-lg shadow-teal-500/20 transition-all hover:shadow-teal-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
-              <span>আর্কাইভ তুলনা করুন</span>
+              <span>{language === 'bn' ? 'আর্কাইভ তুলনা করুন' : 'Compare Archives'}</span>
             </button>
           </div>
         </div>
@@ -216,13 +239,25 @@ export const HistoricalComparisonView: React.FC = () => {
       {/* Loading State */}
       {loading && (
         <LoadingState
-          title="ওয়েব আর্কাইভ স্ন্যাপশট সংগ্রহ ও বিশ্লেষণ চলছে..."
-          message="ইন্টারনেট আর্কাইভ থেকে পূর্বের ও সাম্প্রতিক স্ন্যাপশট সংগ্রহ করে নীতিমালা মিলিয়ে দেখা হচ্ছে..."
-          steps={[
-            'Wayback Machine CDX API থেকে স্ন্যাপশটের তালিকা অনুসন্ধান করা হচ্ছে...',
-            'আগের এবং পরের স্ন্যাপশটের এইচটিএমএল কনটেন্ট নিরাপদে স্যানিটাইজ করা হচ্ছে...',
-            'রিটার্ন পলিসি, রিপ্লেসমেন্ট, ডেলিভারি ফি এবং মূল্যের পরিবর্তন সনাক্ত করা হচ্ছে...',
-          ]}
+          title={language === 'bn' ? 'ওয়েব আর্কাইভ স্ন্যাপশট সংগ্রহ ও বিশ্লেষণ চলছে...' : 'Retrieving & Analyzing Archive Snapshots...'}
+          message={
+            language === 'bn'
+              ? 'ইন্টারনেট আর্কাইভ থেকে পূর্বের ও সাম্প্রতিক স্ন্যাপশট সংগ্রহ করে নীতিমালা মিলিয়ে দেখা হচ্ছে...'
+              : 'Fetching past and recent snapshots from web archive to cross-examine policies...'
+          }
+          steps={
+            language === 'bn'
+              ? [
+                  'Wayback Machine CDX API থেকে স্ন্যাপশটের তালিকা অনুসন্ধান করা হচ্ছে...',
+                  'আগের এবং পরের স্ন্যাপশটের এইচটিএমএল কনটেন্ট নিরাপদে স্যানিটাইজ করা হচ্ছে...',
+                  'রিটার্ন পলিসি, রিপ্লেসমেন্ট, ডেলিভারি ফি এবং মূল্যের পরিবর্তন সনাক্ত করা হচ্ছে...',
+                ]
+              : [
+                  'Querying snapshot list from Wayback Machine CDX API...',
+                  'Sanitizing earlier and later snapshot HTML content safely...',
+                  'Detecting changes in return policy, replacement, delivery fee, and pricing...',
+                ]
+          }
         />
       )}
 
@@ -239,19 +274,21 @@ export const HistoricalComparisonView: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <span className="text-xs font-mono text-indigo-400 uppercase tracking-wider block">
-                  ডোমেইন: {result.cleaned_domain}
+                  {language === 'bn' ? 'ডোমেইন:' : 'Domain:'} {result.cleaned_domain}
                 </span>
                 <h3 className="text-lg sm:text-xl font-bold text-slate-100">
-                  ঐতিহাসিক বিশ্লেষণের ফলাফল ({result.target_url})
+                  {language === 'bn'
+                    ? `ঐতিহাসিক বিশ্লেষণের ফলাফল (${result.target_url})`
+                    : `Historical Analysis Results (${result.target_url})`}
                 </h3>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-                  কভারেজ: {result.coverage_status}
+                  {language === 'bn' ? 'কভারেজ:' : 'Coverage:'} {result.coverage_status}
                 </span>
                 <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-                  স্কোপ: {result.comparison_scope}
+                  {language === 'bn' ? 'স্কোপ:' : 'Scope:'} {result.comparison_scope}
                 </span>
               </div>
             </div>
@@ -270,14 +307,24 @@ export const HistoricalComparisonView: React.FC = () => {
                 <>
                   <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
                   <span className="text-slate-200">
-                    <strong className="text-amber-400">{result.changes_count} টি</strong> নীতিমালায় পরিবর্তন সনাক্ত করা হয়েছে।
+                    {language === 'bn' ? (
+                      <>
+                        <strong className="text-amber-400">{result.changes_count} টি</strong> নীতিমালায় পরিবর্তন সনাক্ত করা হয়েছে।
+                      </>
+                    ) : (
+                      <>
+                        Detected <strong className="text-amber-400">{result.changes_count}</strong> policy change(s).
+                      </>
+                    )}
                   </span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
                   <span className="text-slate-200">
-                    আর্কাইভ স্ন্যাপশটগুলোর মধ্যে কোনো বৈপরীত্য বা নীতিমালার পরিবর্তন পাওয়া যায়নি।
+                    {language === 'bn'
+                      ? 'আর্কাইভ স্ন্যাপশটগুলোর মধ্যে কোনো বৈপরীত্য বা নীতিমালার পরিবর্তন পাওয়া যায়নি।'
+                      : 'No policy contradictions or discrepancies found between archived snapshots.'}
                   </span>
                 </>
               )}
@@ -292,10 +339,10 @@ export const HistoricalComparisonView: React.FC = () => {
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    <span>পূর্ববর্তী স্ন্যাপশট (Earlier Snapshot)</span>
+                    <span>{language === 'bn' ? 'পূর্ববর্তী স্ন্যাপশট' : 'Earlier Snapshot'}</span>
                   </span>
                   <span className="font-mono text-slate-400 text-[11px]">
-                    {result.earlier_snapshot?.formatted_date || 'তারিখ অপ্রতুল'}
+                    {result.earlier_snapshot?.formatted_date || (language === 'bn' ? 'তারিখ অপ্রতুল' : 'Date unavailable')}
                   </span>
                 </div>
                 {result.earlier_snapshot?.snapshot_url && (
@@ -305,13 +352,13 @@ export const HistoricalComparisonView: React.FC = () => {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 underline"
                   >
-                    <span>আর্কাইভ পেজ দেখুন</span>
+                    <span>{language === 'bn' ? 'আর্কাইভ পেজ দেখুন' : 'View archive page'}</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
                 <div className="text-[11px] text-slate-400 space-y-0.5 pt-1">
-                  <p>পেজ ধরণ: {result.earlier_snapshot?.page_type}</p>
-                  <p>সাইজ: {((result.earlier_snapshot?.content_bytes || 0) / 1024).toFixed(1)} KB</p>
+                  <p>{language === 'bn' ? 'পেজ ধরণ:' : 'Page type:'} {result.earlier_snapshot?.page_type}</p>
+                  <p>{language === 'bn' ? 'সাইজ:' : 'Size:'} {((result.earlier_snapshot?.content_bytes || 0) / 1024).toFixed(1)} KB</p>
                 </div>
               </div>
 
@@ -320,10 +367,10 @@ export const HistoricalComparisonView: React.FC = () => {
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>পরবর্তী স্ন্যাপশট (Later Snapshot)</span>
+                    <span>{language === 'bn' ? 'পরবর্তী স্ন্যাপশট' : 'Later Snapshot'}</span>
                   </span>
                   <span className="font-mono text-indigo-300 text-[11px]">
-                    {result.later_snapshot?.formatted_date || 'তারিখ অপ্রতুল'}
+                    {result.later_snapshot?.formatted_date || (language === 'bn' ? 'তারিখ অপ্রতুল' : 'Date unavailable')}
                   </span>
                 </div>
                 {result.later_snapshot?.snapshot_url && (
@@ -333,13 +380,13 @@ export const HistoricalComparisonView: React.FC = () => {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 underline"
                   >
-                    <span>আর্কাইভ পেজ দেখুন</span>
+                    <span>{language === 'bn' ? 'আর্কাইভ পেজ দেখুন' : 'View archive page'}</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
                 <div className="text-[11px] text-slate-400 space-y-0.5 pt-1">
-                  <p>পেজ ধরণ: {result.later_snapshot?.page_type}</p>
-                  <p>সাইজ: {((result.later_snapshot?.content_bytes || 0) / 1024).toFixed(1)} KB</p>
+                  <p>{language === 'bn' ? 'পেজ ধরণ:' : 'Page type:'} {result.later_snapshot?.page_type}</p>
+                  <p>{language === 'bn' ? 'সাইজ:' : 'Size:'} {((result.later_snapshot?.content_bytes || 0) / 1024).toFixed(1)} KB</p>
                 </div>
               </div>
             </div>
@@ -350,7 +397,7 @@ export const HistoricalComparisonView: React.FC = () => {
             <div className="space-y-4">
               <h4 className="font-semibold text-slate-100 text-base sm:text-lg flex items-center gap-2">
                 <Clock className="w-5 h-5 text-indigo-400" />
-                <span>ক্ষেত্রভিত্তিক পরিবর্তন পর্যবেক্ষণ (Field-by-Field Evolution)</span>
+                <span>{language === 'bn' ? 'ক্ষেত্রভিত্তিক পরিবর্তন পর্যবেক্ষণ' : 'Field-by-Field Policy Evolution'}</span>
               </h4>
 
               <div className="space-y-3">
@@ -380,10 +427,12 @@ export const HistoricalComparisonView: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/80 space-y-1">
                         <span className="text-[11px] text-slate-400 font-medium block">
-                          আগের মান ({item.earlier_date || 'তারিখ নেই'}):
+                          {language === 'bn'
+                            ? `আগের মান (${item.earlier_date || 'তারিখ নেই'}):`
+                            : `Previous Value (${item.earlier_date || 'No date'}):`}
                         </span>
                         <p className="font-semibold text-slate-200">
-                          {item.previous_value || 'তথ্য পাওয়া যায়নি'}
+                          {item.previous_value || (language === 'bn' ? 'তথ্য পাওয়া যায়নি' : 'Not available')}
                         </p>
                         {item.earlier_evidence_quote && (
                           <div className="mt-2 text-[11px] text-slate-400 italic font-serif border-l border-slate-700 pl-2">
@@ -395,10 +444,12 @@ export const HistoricalComparisonView: React.FC = () => {
 
                       <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/80 space-y-1">
                         <span className="text-[11px] text-indigo-400 font-medium block">
-                          সাম্প্রতিক মান ({item.later_date || 'তারিখ নেই'}):
+                          {language === 'bn'
+                            ? `সাম্প্রতিক মান (${item.later_date || 'তারিখ নেই'}):`
+                            : `Recent Value (${item.later_date || 'No date'}):`}
                         </span>
                         <p className="font-semibold text-slate-200">
-                          {item.new_value || 'তথ্য পাওয়া যায়নি'}
+                          {item.new_value || (language === 'bn' ? 'তথ্য পাওয়া যায়নি' : 'Not available')}
                         </p>
                         {item.later_evidence_quote && (
                           <div className="mt-2 text-[11px] text-slate-400 italic font-serif border-l border-indigo-500/50 pl-2">
@@ -417,7 +468,7 @@ export const HistoricalComparisonView: React.FC = () => {
                     {/* Limitations */}
                     {item.limitations && (
                       <p className="text-[11px] text-slate-400">
-                        <strong className="text-slate-300">সীমাবদ্ধতা:</strong> {item.limitations}
+                        <strong className="text-slate-300">{language === 'bn' ? 'সীমাবদ্ধতা:' : 'Limitations:'}</strong> {item.limitations}
                       </p>
                     )}
                   </div>
@@ -430,14 +481,26 @@ export const HistoricalComparisonView: React.FC = () => {
           {result.buyer_questions_bangla && result.buyer_questions_bangla.length > 0 && (
             <BuyerQuestionsCard
               questions={result.buyer_questions_bangla}
-              title="পলিসি পরিবর্তনের প্রেক্ষিতে বিক্রেতাকে যা জিজ্ঞাসা করবেন"
-              description="পূর্বে ও বর্তমানে নীতিমালায় যে পরিবর্তন লক্ষ্য করা গেছে, তা পরিষ্কার করতে বিক্রেতাকে এই প্রশ্নগুলো করুন:"
+              title={
+                language === 'bn'
+                  ? 'পলিসি পরিবর্তনের প্রেক্ষিতে বিক্রেতাকে যা জিজ্ঞাসা করবেন'
+                  : 'Questions to Clarify Policy Changes with Seller'
+              }
+              description={
+                language === 'bn'
+                  ? 'পূর্বে ও বর্তমানে নীতিমালায় যে পরিবর্তন লক্ষ্য করা গেছে, তা পরিষ্কার করতে বিক্রেতাকে এই প্রশ্নগুলো করুন:'
+                  : 'Ask the seller these questions to clarify policy changes observed over time:'
+              }
             />
           )}
 
           {/* System Disclaimer */}
           <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-1">
-            <p className="font-semibold text-slate-300">ভোক্তা অধিকার ও ঐতিহাসিক ডেটা ডিসক্লেইমার:</p>
+            <p className="font-semibold text-slate-300">
+              {language === 'bn'
+                ? 'ভোক্তা অধিকার ও ঐতিহাসিক ডেটা ডিসক্লেইমার:'
+                : 'Consumer Rights & Historical Data Disclaimer:'}
+            </p>
             <p className="leading-relaxed">{result.disclaimer}</p>
           </div>
         </div>
@@ -446,8 +509,16 @@ export const HistoricalComparisonView: React.FC = () => {
       {/* Empty State */}
       {!result && !loading && !error && (
         <EmptyState
-          title="ওয়েবসাইট আর্কাইভ ইতিহাস অনুসন্ধান করুন"
-          description="উপরে যেকোনো ই-কমার্স ওয়েবসাইটের ইউআরএল দিন এবং অতীতে তাদের নীতিমালায় কোনো উল্লেখযোগ্য পরিবর্তন এসেছে কি না তা দেখুন।"
+          title={
+            language === 'bn'
+              ? 'ওয়েবসাইট আর্কাইভ ইতিহাস অনুসন্ধান করুন'
+              : 'Search Website Archive History'
+          }
+          description={
+            language === 'bn'
+              ? 'উপরে যেকোনো ই-কমার্স ওয়েবসাইটের ইউআরএল দিন এবং অতীতে তাদের নীতিমালায় কোনো উল্লেখযোগ্য পরিবর্তন এসেছে কি না তা দেখুন।'
+              : 'Enter any e-commerce website URL above to inspect whether significant policy changes occurred over time.'
+          }
         />
       )}
     </div>

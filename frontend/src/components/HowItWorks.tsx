@@ -3,23 +3,23 @@ import { FileText, Cpu, CheckCircle2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 export const HowItWorks: React.FC = () => {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
 
   const steps = [
     {
-      num: '১',
+      num: language === 'bn' ? '১' : '1',
       title: t('step1Title'),
       desc: t('step1Desc'),
       icon: FileText,
     },
     {
-      num: '২',
+      num: language === 'bn' ? '২' : '2',
       title: t('step2Title'),
       desc: t('step2Desc'),
       icon: Cpu,
     },
     {
-      num: '৩',
+      num: language === 'bn' ? '৩' : '3',
       title: t('step3Title'),
       desc: t('step3Desc'),
       icon: CheckCircle2,

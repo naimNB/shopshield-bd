@@ -44,7 +44,7 @@ export const AdQuickCheckView: React.FC = () => {
     },
     {
       titleBn: 'দৃশ্যপট ৩: স্পষ্ট শর্তযুক্ত বিজ্ঞাপন',
-      titleEn: 'Scenario 3: Verified Clear Terms',
+      titleEn: 'Scenario 3: Clear Advertised Terms',
       text: 'Winter Fleece Hoodie price 1,200 Tk. Cash on Delivery available across Bangladesh. Delivery charge 100 Tk. 7 days exchange policy. 6 months warranty.',
       product: 'Fleece Hoodie',
     },
@@ -268,9 +268,9 @@ export const AdQuickCheckView: React.FC = () => {
                 <span className="text-slate-400 block text-xs">{language === 'bn' ? 'ক্যাশ অন ডেলিভারি (সিওডি)' : 'Cash on Delivery (COD)'}</span>
                 <span className="font-semibold text-slate-100">
                   {claims?.cod_available === true
-                    ? (language === 'bn' ? 'উপলব্ধ (Available)' : 'Available')
+                    ? (language === 'bn' ? 'উপলব্ধ' : 'Available')
                     : claims?.cod_available === false
-                    ? (language === 'bn' ? 'অনুপলব্ধ (Not Available)' : 'Explicitly Denied')
+                    ? (language === 'bn' ? 'অনুপলব্ধ' : 'Explicitly Denied')
                     : (language === 'bn' ? 'বিজ্ঞাপনে উল্লেখ নেই' : 'Not mentioned')}
                 </span>
               </div>

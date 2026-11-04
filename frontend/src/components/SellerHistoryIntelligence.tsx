@@ -20,8 +20,10 @@ import type {
 import { HistoricalComparisonView } from './workflows/HistoricalComparisonView';
 import { BuyerQuestionsCard } from './shared/BuyerQuestionsCard';
 import { LoadingState } from './shared/StatusState';
+import { useLanguage } from '../context/LanguageContext';
 
 export const SellerHistoryIntelligence: React.FC = () => {
+  const { language, t } = useLanguage();
   // Mode switch: profile research (default) vs historical policy comparison (advanced)
   const [activeSubMode, setActiveSubMode] = useState<'profile' | 'comparison'>('profile');
 
@@ -79,12 +81,20 @@ export const SellerHistoryIntelligence: React.FC = () => {
     if (!file) return;
 
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setTransparencyError('PNG, JPEG, এবং WebP ফরম্যাটের স্ক্রিনশট আপলোড করুন।');
+      setTransparencyError(
+        language === 'bn'
+          ? 'PNG, JPEG, এবং WebP ফরম্যাটের স্ক্রিনশট আপলোড করুন।'
+          : 'Please upload a screenshot in PNG, JPEG, or WebP format.'
+      );
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setTransparencyError('ফাইলের সাইজ ৫ মেগাবাইটের বেশি হতে পারবে না।');
+      setTransparencyError(
+        language === 'bn'
+          ? 'ফাইলের সাইজ ৫ মেগাবাইটের বেশি হতে পারবে না।'
+          : 'Screenshot file size must be less than 5 MB.'
+      );
       return;
     }
 
@@ -132,7 +142,12 @@ export const SellerHistoryIntelligence: React.FC = () => {
       await fetchConsolidatedReport(json.transparency_data, websiteUrl.trim());
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      const msg = err instanceof Error ? err.message : 'স্ক্রিনশট বিশ্লেষণ ব্যর্থ হয়েছে।';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : language === 'bn'
+          ? 'স্ক্রিনশট বিশ্লেষণ ব্যর্থ হয়েছে।'
+          : 'Screenshot analysis failed.';
       setTransparencyError(msg);
     } finally {
       setTransparencyLoading(false);
@@ -143,7 +158,11 @@ export const SellerHistoryIntelligence: React.FC = () => {
   const handleResearchWebsite = async (overrideUrl?: string) => {
     const targetUrl = overrideUrl || websiteUrl;
     if (!targetUrl.trim()) {
-      setWebsiteError('অনুগ্রহ করে ওয়েবসাইটের লিঙ্ক দিন (যেমন: https://chaldal.com)।');
+      setWebsiteError(
+        language === 'bn'
+          ? 'অনুগ্রহ করে ওয়েবসাইটের লিঙ্ক দিন (যেমন: https://chaldal.com)।'
+          : 'Please enter a website URL (e.g., https://chaldal.com).'
+      );
       return;
     }
 
@@ -163,7 +182,12 @@ export const SellerHistoryIntelligence: React.FC = () => {
       await fetchConsolidatedReport(transparencyData, targetUrl.trim());
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      const msg = err instanceof Error ? err.message : 'ওয়েবসাইট আর্কাইভ অনুসন্ধান ব্যর্থ হয়েছে।';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : language === 'bn'
+          ? 'ওয়েবসাইট আর্কাইভ অনুসন্ধান ব্যর্থ হয়েছে।'
+          : 'Website archive search failed.';
       setWebsiteError(msg);
     } finally {
       setWebsiteLoading(false);
@@ -219,7 +243,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          বিক্রেতার প্রোফাইল ও ওয়েব রেকর্ড
+          {t('sellerSubModeProfile')}
         </button>
         <button
           type="button"
@@ -230,7 +254,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          পূর্ববর্তী পলিসি ও মূল্যের পরিবর্তন
+          {t('sellerSubModeComparison')}
         </button>
       </div>
 
@@ -243,16 +267,16 @@ export const SellerHistoryIntelligence: React.FC = () => {
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-7 space-y-5">
             <div>
               <h3 className="text-xl font-bold text-white font-sans">
-                বিক্রেতার ইতিহাস ও আর্কাইভ যাচাই
+                {t('sellerHistoryTitle')}
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 mt-1 font-sans">
-                অনলাইন শপের ওয়েবসাইট আর্কাইভ এবং ফেসবুক পেজ ট্রান্সপারেন্সির নির্ভরযোগ্য রেকর্ড অনুসন্ধান করুন।
+                {t('sellerHistoryDesc')}
               </p>
             </div>
 
             {/* Sample Links */}
             <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-              <span className="text-slate-400 font-sans">নমুনা লিঙ্ক:</span>
+              <span className="text-slate-400 font-sans">{t('sellerSampleLinks')}</span>
               {['https://chaldal.com', 'https://daraz.com.bd', 'https://rokomari.com'].map((url) => (
                 <button
                   key={url}
@@ -272,13 +296,13 @@ export const SellerHistoryIntelligence: React.FC = () => {
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5 font-sans">
                   <Globe className="w-4 h-4 text-teal-400 shrink-0" aria-hidden="true" />
-                  <span>অনলাইন শপ ওয়েবসাইট লিঙ্ক</span>
+                  <span>{t('sellerWebsiteUrlLabel')}</span>
                 </label>
                 <input
                   type="text"
                   value={websiteUrl}
                   onChange={(e) => setWebsiteUrl(e.target.value)}
-                  placeholder="https://daraz.com.bd অথবা chaldal.com"
+                  placeholder={t('sellerWebsiteUrlPlaceholder')}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus-visible:ring-2 focus-visible:ring-teal-400 transition-colors"
                 />
               </div>
@@ -293,12 +317,12 @@ export const SellerHistoryIntelligence: React.FC = () => {
               {/* Optional Facebook Page Transparency Screen Upload */}
               <details className="group rounded-xl border border-slate-800/80 bg-slate-950/40 p-3.5 text-xs">
                 <summary className="cursor-pointer font-semibold text-slate-300 hover:text-white flex items-center justify-between select-none">
-                  <span>ফেসবুক পেজ ট্রান্সপারেন্সি স্ক্রিনশট যোগ করুন (ঐচ্ছিক)</span>
+                  <span>{t('sellerFbTransparencyTitle')}</span>
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pt-3 space-y-3">
                   <p className="text-slate-400 text-xs">
-                    ফেসবুক পেজের 'Page Transparency' বা 'About' সেকশনের স্ক্রিনশট আপলোড করলে পেজ তৈরির তারিখ ও পূর্বের নাম পরিবর্তন পরীক্ষা করা হবে।
+                    {t('sellerFbTransparencyHelp')}
                   </p>
                   <input
                     ref={fileInputRef}
@@ -314,7 +338,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
                       className="w-full py-2.5 px-3 rounded-xl border border-dashed border-slate-700 hover:border-teal-500/60 bg-slate-900/40 text-slate-300 hover:text-white text-xs flex items-center justify-center gap-2"
                     >
                       <Upload className="w-4 h-4 text-teal-400" />
-                      <span>স্ক্রিনশট ফাইল নির্বাচন করুন</span>
+                      <span>{t('sellerSelectScreenshot')}</span>
                     </button>
                   ) : (
                     <div className="rounded-xl border border-slate-800 bg-[#0a1224] p-3 space-y-2.5">
@@ -334,7 +358,11 @@ export const SellerHistoryIntelligence: React.FC = () => {
                           {transparencyData && (
                             <div className="flex items-center gap-1 text-[11px] text-teal-300 mt-1">
                               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                              <span>পেজ: {transparencyData.page_name || 'সনাক্ত হয়েছে'}</span>
+                              <span>
+                                {language === 'bn'
+                                  ? `পেজ: ${transparencyData.page_name || 'সনাক্ত হয়েছে'}`
+                                  : `Page: ${transparencyData.page_name || 'Detected'}`}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -345,13 +373,17 @@ export const SellerHistoryIntelligence: React.FC = () => {
                             disabled={transparencyLoading}
                             className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs transition-colors disabled:opacity-50 min-h-[36px]"
                           >
-                            {transparencyLoading ? 'OCR হচ্ছে...' : transparencyData ? 'পুনরায় বিশ্লেষণ' : 'বিশ্লেষণ করুন'}
+                            {transparencyLoading
+                              ? (language === 'bn' ? 'OCR হচ্ছে...' : 'Processing OCR...')
+                              : transparencyData
+                              ? (language === 'bn' ? 'পুনরায় বিশ্লেষণ' : 'Re-analyze')
+                              : (language === 'bn' ? 'বিশ্লেষণ করুন' : 'Analyze')}
                           </button>
                           <button
                             type="button"
                             onClick={handleRemoveImage}
                             className="p-2 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors"
-                            aria-label="ছবি মুছে ফেলুন"
+                            aria-label={language === 'bn' ? 'ছবি মুছে ফেলুন' : 'Remove image'}
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -373,7 +405,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition-colors flex items-center gap-1.5 min-h-[44px]"
                   >
                     <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>রিসেট করুন</span>
+                    <span>{t('sellerResetBtn')}</span>
                   </button>
                 ) : <div />}
 
@@ -383,7 +415,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
                   className="px-6 py-2.5 rounded-xl font-bold text-sm bg-teal-600 hover:bg-teal-500 text-white shadow-md transition-all focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-h-[44px]"
                 >
                   <Globe className="w-4 h-4" aria-hidden="true" />
-                  <span>{websiteLoading ? 'আর্কাইভ অনুসন্ধান হচ্ছে...' : 'ওয়েবসাইট ইতিহাস অনুসন্ধান করুন'}</span>
+                  <span>{websiteLoading ? t('sellerAnalyzingBtn') : t('sellerAnalyzeBtn')}</span>
                 </button>
               </div>
             </form>
@@ -392,55 +424,63 @@ export const SellerHistoryIntelligence: React.FC = () => {
           {/* Loading State */}
           {(websiteLoading || reportLoading) && (
             <LoadingState
-              title="ওয়েব আর্কাইভ অনুসন্ধান চলছে..."
-              message="Wayback Machine CDX API থেকে ডোমেইনের সংরক্ষিত ইতিহাস সংগ্রহ করা হচ্ছে..."
+              title={language === 'bn' ? 'ওয়েব আর্কাইভ অনুসন্ধান চলছে...' : 'Searching Web Archives...'}
+              message={
+                language === 'bn'
+                  ? 'Wayback Machine CDX API থেকে ডোমেইনের সংরক্ষিত ইতিহাস সংগ্রহ করা হচ্ছে...'
+                  : 'Retrieving domain history from Wayback Machine CDX API...'
+              }
             />
           )}
 
           {/* Results: Progressive Disclosure */}
           {websiteData && !websiteLoading && (
             <div className="space-y-6">
-              {/* 1. সংক্ষেপে যা পাওয়া গেছে */}
+              {/* 1. Summary of findings */}
               <div className="rounded-2xl bg-slate-900/70 border border-slate-800 p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="text-base font-bold text-white font-sans flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-teal-400" aria-hidden="true" />
-                    <span>সংক্ষেপে যা পাওয়া গেছে (ডোমেইন: {websiteData.cleaned_domain})</span>
+                    <span>
+                      {t('sellerSummaryTitle')} ({language === 'bn' ? 'ডোমেইন' : 'Domain'}: {websiteData.cleaned_domain})
+                    </span>
                   </h4>
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-500/10 text-teal-300 border border-teal-500/30">
-                    স্বাধীন ওয়েব আর্কাইভ
+                    {language === 'bn' ? 'স্বাধীন ওয়েব আর্কাইভ' : 'Independent Web Archive'}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
                   <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-                    <span className="text-slate-400 block text-xs">প্রথম সংরক্ষিত স্ন্যাপশট</span>
+                    <span className="text-slate-400 block text-xs">{t('sellerEarliestSnapshot')}</span>
                     <span className="font-semibold text-slate-100 font-mono">
-                      {websiteData.earliest_snapshot?.formatted_date || 'আর্কাইভ নেই'}
+                      {websiteData.earliest_snapshot?.formatted_date || (language === 'bn' ? 'আর্কাইভ নেই' : 'No archives')}
                     </span>
                   </div>
 
                   <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-                    <span className="text-slate-400 block text-xs">মোট আর্কাইভ নমুনা</span>
+                    <span className="text-slate-400 block text-xs">{t('sellerTotalSnapshots')}</span>
                     <span className="font-semibold text-slate-100 font-mono">
                       {websiteData.archive_available
-                        ? `${websiteData.sample_snapshots_count || websiteData.total_snapshots_observed} টি স্ন্যাপশট`
-                        : 'সংরক্ষিত স্ন্যাপশট নেই'}
+                        ? (language === 'bn'
+                            ? `${websiteData.sample_snapshots_count || websiteData.total_snapshots_observed} টি স্ন্যাপশট`
+                            : `${websiteData.sample_snapshots_count || websiteData.total_snapshots_observed} snapshots`)
+                        : (language === 'bn' ? 'সংরক্ষিত স্ন্যাপশট নেই' : 'No saved snapshots')}
                     </span>
                   </div>
                 </div>
 
                 <p className="text-[11px] text-slate-400 font-sans italic">
-                  ℹ️ প্রথম আর্কাইভ তারিখ ডোমেইন খোলার বা ব্যবসা প্রতিষ্ঠার প্রমাণ নয়। এটি কেবল ওয়েব আর্কাইভে প্রথম রেকর্ড হওয়ার প্রমাণ।
+                  {t('sellerArchiveDisclaimer')}
                 </p>
               </div>
 
-              {/* 2. স্বাধীন ওয়েব আর্কাইভ লিঙ্ক */}
+              {/* 2. Public archive links */}
               {websiteData.archive_available && websiteData.sample_snapshots.length > 0 && (
                 <div className="rounded-2xl bg-slate-900/50 border border-slate-800 p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-300 font-sans">
-                      যাচাইযোগ্য পাবলিক আর্কাইভ লিঙ্কসমূহ:
+                      {t('sellerPublicArchiveLinks')}
                     </span>
                     <span className="text-[11px] text-teal-400 font-mono">Wayback Machine</span>
                   </div>
@@ -462,44 +502,53 @@ export const SellerHistoryIntelligence: React.FC = () => {
                 </div>
               )}
 
-              {/* 3. পেজ ট্রান্সপারেন্সি ফলাফল (যদি থাকে) */}
+              {/* 3. Page Transparency results (if available) */}
               {transparencyData && (
                 <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-5 space-y-3">
-                  <h4 className="text-sm font-bold text-slate-100 font-sans">ফেসবুক পেজ রেকর্ড</h4>
+                  <h4 className="text-sm font-bold text-slate-100 font-sans">{t('sellerFbPageRecord')}</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                      <span className="text-slate-400 block text-[11px]">পেজের নাম:</span>
-                      <span className="font-semibold text-slate-200">{transparencyData.page_name || 'অনুল্লেখিত'}</span>
+                      <span className="text-slate-400 block text-[11px]">{t('sellerPageName')}</span>
+                      <span className="font-semibold text-slate-200">
+                        {transparencyData.page_name || (language === 'bn' ? 'অনুল্লেখিত' : 'Not specified')}
+                      </span>
                     </div>
                     <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                      <span className="text-slate-400 block text-[11px]">পেজ তৈরির তারিখ:</span>
-                      <span className="font-semibold text-slate-200">{transparencyData.page_creation_date || 'অনুল্লেখিত'}</span>
+                      <span className="text-slate-400 block text-[11px]">{t('sellerPageCreationDate')}</span>
+                      <span className="font-semibold text-slate-200">
+                        {transparencyData.page_creation_date || (language === 'bn' ? 'অনুল্লেখিত' : 'Not specified')}
+                      </span>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 4. কেনার আগে যা জিজ্ঞেস করবেন */}
+              {/* 4. Actionable Buyer Questions */}
               {report?.buyer_verification_questions && report.buyer_verification_questions.length > 0 && (
                 <BuyerQuestionsCard
                   questions={report.buyer_verification_questions}
-                  title="বিক্রেতার বিশ্বাসযোগ্যতা যাচাইয়ে করণীয় প্রশ্ন"
+                  title={t('sellerBuyerQuestionsTitle')}
                 />
               )}
 
-              {/* 5. বিস্তারিত প্রমাণ (Expandable) */}
+              {/* 5. Detailed evidence (Expandable) */}
               <details className="group rounded-2xl border border-slate-800 bg-slate-900/40 p-4 transition-all">
                 <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-300 hover:text-white select-none">
                   <span className="flex items-center gap-2">
                     <Info className="w-4 h-4 text-teal-400" aria-hidden="true" />
-                    <span>বিস্তারিত প্রমাণ ও সোর্স মেটাডাটা</span>
+                    <span>{t('sellerDetailedEvidence')}</span>
                   </span>
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pt-4 space-y-2 border-t border-slate-800/80 mt-3 text-xs text-slate-400 font-mono">
-                  <p>ডোমেইন: {websiteData.cleaned_domain}</p>
-                  <p>সার্চ ইউআরএল: {websiteData.target_url}</p>
-                  <p>সিডিএক্স কভারেজ: {websiteData.archive_available ? 'রেকর্ড পাওয়া গেছে' : 'রেকর্ড নেই'}</p>
+                  <p>{language === 'bn' ? 'ডোমেইন:' : 'Domain:'} {websiteData.cleaned_domain}</p>
+                  <p>{language === 'bn' ? 'সার্চ ইউআরএল:' : 'Search URL:'} {websiteData.target_url}</p>
+                  <p>
+                    {language === 'bn' ? 'সিডিএক্স কভারেজ:' : 'CDX Coverage:'}{' '}
+                    {websiteData.archive_available
+                      ? (language === 'bn' ? 'রেকর্ড পাওয়া গেছে' : 'Records found')
+                      : (language === 'bn' ? 'রেকর্ড নেই' : 'No records')}
+                  </p>
                 </div>
               </details>
             </div>

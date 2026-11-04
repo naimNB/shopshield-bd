@@ -1,6 +1,7 @@
 import React from 'react';
 import { Quote, AlertCircle, Info } from 'lucide-react';
 import type { UnifiedFinding } from '../../types/api';
+import { useLanguage } from '../../context/LanguageContext';
 import { EvidenceBadge } from './EvidenceBadge';
 import { SourceAttribution } from './SourceAttribution';
 
@@ -9,13 +10,19 @@ interface UnifiedFindingCardProps {
 }
 
 export const UnifiedFindingCard: React.FC<UnifiedFindingCardProps> = ({ finding }) => {
+  const { language } = useLanguage();
+
   // Format observed value cleanly
   const formatObservedValue = (val: unknown): string => {
-    if (val === null || val === undefined) return 'নির্দিষ্ট নয় (Not Specified)';
-    if (typeof val === 'boolean') return val ? 'হ্যাঁ (Available/Required)' : 'না (Not Available/Not Required)';
+    if (val === null || val === undefined) return language === 'bn' ? 'নির্দিষ্ট নয়' : 'Not Specified';
+    if (typeof val === 'boolean') {
+      return val
+        ? (language === 'bn' ? 'উপলব্ধ / প্রযোজ্য' : 'Available / Required')
+        : (language === 'bn' ? 'অনুপলব্ধ / প্রযোজ্য নয়' : 'Not Available / Not Required');
+    }
     if (typeof val === 'number') {
       if (finding.claim_type.includes('price') || finding.claim_type.includes('advance') || finding.claim_type.includes('charge')) {
-        return `৳ ${val.toLocaleString('bn-BD')}`;
+        return `৳ ${val.toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US')}`;
       }
       return val.toString();
     }
@@ -52,7 +59,9 @@ export const UnifiedFindingCard: React.FC<UnifiedFindingCardProps> = ({ finding 
 
       {/* Observed Value */}
       <div className="flex items-baseline gap-2 bg-slate-950/50 px-3 py-2 rounded-lg border border-slate-800/80">
-        <span className="text-xs text-slate-400 font-medium">পর্যবেক্ষিত মান (Observed Value):</span>
+        <span className="text-xs text-slate-400 font-medium">
+          {language === 'bn' ? 'পর্যবেক্ষিত মান:' : 'Observed Value:'}
+        </span>
         <span className="text-sm font-bold text-slate-100">
           {formatObservedValue(finding.observed_value)}
         </span>
@@ -63,7 +72,7 @@ export const UnifiedFindingCard: React.FC<UnifiedFindingCardProps> = ({ finding 
         <div className="bg-slate-950/70 border-l-3 border-teal-500/80 rounded-r-lg p-3 text-xs sm:text-sm text-slate-200">
           <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1 font-mono">
             <Quote className="w-3.5 h-3.5 text-teal-400 shrink-0" aria-hidden="true" />
-            <span>মূল উদ্ধৃতি (Verbatim Evidence):</span>
+            <span>{language === 'bn' ? 'মূল উদ্ধৃতি:' : 'Verbatim Evidence:'}</span>
           </div>
           <p className="italic font-serif text-slate-100 break-words leading-relaxed">
             &ldquo;{finding.evidence_quote}&rdquo;
@@ -81,7 +90,10 @@ export const UnifiedFindingCard: React.FC<UnifiedFindingCardProps> = ({ finding 
         <div className="flex items-start gap-2 bg-slate-900/60 rounded-lg p-2.5 text-xs text-slate-300 border border-slate-800">
           <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
           <p className="leading-relaxed">
-            <strong className="text-slate-200 font-semibold">সীমাবদ্ধতা:</strong> {finding.limitations}
+            <strong className="text-slate-200 font-semibold">
+              {language === 'bn' ? 'সীমাবদ্ধতা:' : 'Limitations:'}
+            </strong>{' '}
+            {finding.limitations}
           </p>
         </div>
       )}
@@ -91,7 +103,10 @@ export const UnifiedFindingCard: React.FC<UnifiedFindingCardProps> = ({ finding 
         <div className="flex items-start gap-2 bg-yellow-500/10 rounded-lg p-2.5 text-xs text-yellow-200 border border-yellow-500/30">
           <AlertCircle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" aria-hidden="true" />
           <p>
-            <strong className="font-semibold">পর্যালোচনার কারণ:</strong> {finding.review_reason}
+            <strong className="font-semibold">
+              {language === 'bn' ? 'পর্যালোচনার কারণ:' : 'Review Reason:'}
+            </strong>{' '}
+            {finding.review_reason}
           </p>
         </div>
       )}

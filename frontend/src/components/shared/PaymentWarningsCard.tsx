@@ -24,7 +24,7 @@ export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
       return {
         cardBg: 'bg-rose-950/20 border-rose-500/40',
         badgeBg: 'bg-rose-500/20 text-rose-300 border-rose-500/50',
-        badgeText: language === 'bn' ? 'উচ্চ ঝুঁকি (High Risk)' : 'High Risk',
+        badgeText: language === 'bn' ? 'উচ্চ ঝুঁকি' : 'High Risk',
         icon: ShieldAlert,
         iconColor: 'text-rose-400',
       };
@@ -33,7 +33,7 @@ export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
       return {
         cardBg: 'bg-amber-950/20 border-amber-500/40',
         badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/50',
-        badgeText: language === 'bn' ? 'সতর্কতা (Caution)' : 'Caution',
+        badgeText: language === 'bn' ? 'সতর্কতা' : 'Caution',
         icon: AlertTriangle,
         iconColor: 'text-amber-400',
       };
@@ -41,7 +41,7 @@ export const PaymentWarningsCard: React.FC<PaymentWarningsCardProps> = ({
     return {
       cardBg: 'bg-slate-900 border-slate-800',
       badgeBg: 'bg-slate-800 text-slate-300 border-slate-700',
-      badgeText: language === 'bn' ? 'তথ্যমূলক (Advisory)' : 'Informational',
+      badgeText: language === 'bn' ? 'তথ্যমূলক' : 'Informational',
       icon: Info,
       iconColor: 'text-slate-400',
     };

@@ -61,7 +61,9 @@ async function runSmokeTests() {
     console.log('   Testing English Language Switch...');
     const enBtn = desktopPage.locator('button:has-text("English")').first();
     await enBtn.click();
-    await wait(200);
+    await wait(250);
+
+    // 1. Verify dynamic verify header
     const enVerifyHeader = await desktopPage.locator('#analyzer h2').textContent();
     console.log(`   English Header: "${enVerifyHeader?.trim()}"`);
     if (!enVerifyHeader?.includes('Page Transparency')) {
@@ -69,7 +71,94 @@ async function runSmokeTests() {
       allPassed = false;
     }
 
-    // Switch back to Bangla
+    // 2. Verify How It Works step numbers in English mode (1, 2, 3)
+    const stepBadges = await desktopPage.locator('#how-it-works div.font-mono').allTextContents();
+    console.log(`   English How It Works numbers: ${JSON.stringify(stepBadges)}`);
+    if (!stepBadges.includes('1') || !stepBadges.includes('2') || !stepBadges.includes('3')) {
+      console.error('   ❌ How It Works step badges are not 1, 2, 3 in English mode');
+      allPassed = false;
+    }
+    if (stepBadges.includes('১') || stepBadges.includes('২') || stepBadges.includes('৩')) {
+      console.error('   ❌ Lingering Bengali digits in How It Works step badges in English mode');
+      allPassed = false;
+    }
+
+    // 3. Verify About Section privacy & open-source descriptions in English mode
+    const aboutText = await desktopPage.locator('#about').textContent();
+    if (!aboutText.includes('Uploaded screenshots and chat content are processed without permanent storage')) {
+      console.error('   ❌ About section does not contain English privacy description');
+      allPassed = false;
+    }
+    if (aboutText.includes('আপনার আপলোড করা স্ক্রিনশট বা চ্যাট সার্ভারে স্থায়ীভাবে')) {
+      console.error('   ❌ Lingering Bengali privacy description in English mode');
+      allPassed = false;
+    }
+    if (!aboutText.includes('An open-source technology initiative designed to help online and social-commerce buyers')) {
+      console.error('   ❌ About section does not contain English open-source description');
+      allPassed = false;
+    }
+    if (aboutText.includes('অনলাইন ও সোশ্যাল কমার্সে সাধারণ ক্রেতাদের আর্থিক নিরাপত্তা')) {
+      console.error('   ❌ Lingering Bengali open-source description in English mode');
+      allPassed = false;
+    }
+
+    // 4. Verify Footer headings in English mode
+    const footerText = await desktopPage.locator('footer').textContent();
+    if (!footerText.includes('Developer API') || !footerText.includes('Hackathon Information')) {
+      console.error('   ❌ Footer does not contain English headings "Developer API" & "Hackathon Information"');
+      allPassed = false;
+    }
+    if (footerText.includes('ডেভেলপার এপিআই') || footerText.includes('হ্যাকাতন তথ্য')) {
+      console.error('   ❌ Lingering Bengali footer headings in English mode');
+      allPassed = false;
+    }
+
+    // 5. Verify Scenario 3 button title in English mode
+    const adTab = desktopPage.locator('#tab-ad-check');
+    await adTab.click();
+    await wait(200);
+    const scenario3Btn = desktopPage.locator('button:has-text("Clear Advertised Terms")').first();
+    const isScenario3Visible = await scenario3Btn.isVisible();
+    console.log(`   Scenario 3 button "Clear Advertised Terms" visible: ${isScenario3Visible}`);
+    if (!isScenario3Visible) {
+      console.error('   ❌ Scenario 3 button with text "Clear Advertised Terms" not found');
+      allPassed = false;
+    }
+
+    // 6. Verify data isolation upon language toggle
+    const testInputText = 'Sample Winter Jacket Price 1500 Tk Cash on delivery';
+    await desktopPage.locator('#ad-text-input').fill(testInputText);
+    const bnBtnToggle = desktopPage.locator('button:has-text("বাংলা")').first();
+    await bnBtnToggle.click();
+    await wait(200);
+    const textAfterBnToggle = await desktopPage.locator('#ad-text-input').inputValue();
+    if (textAfterBnToggle !== testInputText) {
+      console.error('   ❌ Input text was lost or mutated after toggling to Bengali');
+      allPassed = false;
+    } else {
+      console.log('   ✅ Input text preserved when switching to Bengali.');
+    }
+
+    // Check Bengali How It Works step badges (১, ২, ৩)
+    const bnStepBadges = await desktopPage.locator('#how-it-works div.font-mono').allTextContents();
+    console.log(`   Bengali How It Works numbers: ${JSON.stringify(bnStepBadges)}`);
+    if (!bnStepBadges.includes('১') || !bnStepBadges.includes('২') || !bnStepBadges.includes('৩')) {
+      console.error('   ❌ How It Works step badges are not ১, ২, ৩ in Bengali mode');
+      allPassed = false;
+    }
+
+    // Switch back to English and check input preservation again
+    await enBtn.click();
+    await wait(200);
+    const textAfterEnToggle = await desktopPage.locator('#ad-text-input').inputValue();
+    if (textAfterEnToggle !== testInputText) {
+      console.error('   ❌ Input text was lost or mutated after toggling back to English');
+      allPassed = false;
+    } else {
+      console.log('   ✅ Input text preserved when switching back to English.');
+    }
+
+    // Switch back to Bangla as default
     const bnBtn = desktopPage.locator('button:has-text("বাংলা")').first();
     await bnBtn.click();
     await wait(200);

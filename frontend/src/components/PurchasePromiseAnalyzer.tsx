@@ -39,8 +39,8 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
       chat: 'Yes sir 100% authentic original Casio watch. Official showroom price is 14,000 Tk but our wholesale imported price is only 2,200 Tk. Send 200 Tk courier charge advance to book.',
     },
     {
-      titleBn: 'দৃশ্যপট ৩: শর্ত সামঞ্জস্যপূর্ণ',
-      titleEn: 'Scenario 3: Consistent Verified Promises',
+      titleBn: 'দৃশ্যপট ৩: স্পষ্ট শর্তযুক্ত বিজ্ঞাপন',
+      titleEn: 'Scenario 3: Clear Advertised Terms',
       ad: 'Premium Cotton Formal Shirt. Price 1250 BDT. Cash on Delivery available all over Bangladesh. 3 days easy return.',
       chat: 'Ji bhai, shirt price 1250 taka. Delivery charge 80 taka. Full Cash on Delivery te parcel nite parben. 3 diner moddhe size change kora jabe.',
     },

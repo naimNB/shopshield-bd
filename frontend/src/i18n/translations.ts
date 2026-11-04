@@ -53,8 +53,8 @@ export const translations = {
     scenario1Desc: 'বিজ্ঞাপনে ক্যাশ অন ডেলিভারি, কিন্তু চ্যাটে ফুল অগ্রিম পেমেন্টের দাবি।',
     scenario2Title: "যাচাইহীন '১০০% আসল' ঘড়ি দাবি",
     scenario2Desc: 'অস্বাভাবিক কম দামে আসল দাবি, ডেলিভারি চার্জ অগ্রিম।',
-    scenario3Title: 'পুরোনো পেজ ও হিস্ট্রি যাচাই',
-    scenario3Desc: 'ফেসবুক পেজ বয়স, নাম পরিবর্তনের ইতিহাস ও ওয়েবসাইটের পুরোনো রেকর্ড।',
+    scenario3Title: 'দৃশ্যপট ৩: স্পষ্ট শর্তযুক্ত বিজ্ঞাপন',
+    scenario3Desc: 'এক্সক্লুসিভ চামড়ার ওয়ালেট, স্পষ্ট ক্যাশ অন ডেলিভারি এবং রিটার্ন শর্ত।',
 
     // Form Inputs & Actions
     adInputLabel: 'বিজ্ঞাপনের টেক্সট (বা স্ক্রিনশট থেকে টেক্সট):',
@@ -148,11 +148,11 @@ export const translations = {
     // How It Works Section
     howItWorksHeading: 'কীভাবে ShopShield কাজ করে',
     howItWorksSubheading: 'নিরাপদ অনলাইন কেনাকাটার ৩টি ধাপ',
-    step1Title: '১. তথ্য বা স্ক্রিনশট দিন',
+    step1Title: 'তথ্য বা স্ক্রিনশট দিন',
     step1Desc: 'বিজ্ঞাপনের টেক্সট লিখুন অথবা ফেসবুক পোস্ট বা মেসেঞ্জারের স্ক্রিনশট আপলোড করুন।',
-    step2Title: '২. প্রমাণভিত্তিক এআই বিশ্লেষণ',
+    step2Title: 'প্রমাণভিত্তিক এআই বিশ্লেষণ',
     step2Desc: 'মূল্য, ক্যাশ অন ডেলিভারি, অগ্রিম টাকা এবং রিটার্ন পলিসি সতর্কভাবে বিশ্লেষণ করা হয়।',
-    step3Title: '৩. নিরাপদ কেনাকাটার সিদ্ধান্ত নিন',
+    step3Title: 'নিরাপদ কেনাকাটার সিদ্ধান্ত নিন',
     step3Desc: 'গরমিল জানুন, পেমেন্ট ঝুঁকি বুঝুন এবং বিক্রেতাকে সরাসরি কপি করে পাঠানোর মতো প্রশ্ন পান।',
 
     // About Section
@@ -165,10 +165,39 @@ export const translations = {
     aboutPill1: 'ওপেন-সোর্স ও স্বাধীন',
     aboutPill2: 'প্রমাণভিত্তিক সিদ্ধান্ত',
     aboutPill3: 'গোপনীয়তা সুরক্ষিত',
+    aboutOpenSourceDesc: 'অনলাইন ও সোশ্যাল কমার্সে সাধারণ ক্রেতাদের আর্থিক নিরাপত্তা ও অধিকার রক্ষার একটি উন্মুক্ত প্রযুক্তি উদ্যোগ।',
+    aboutPrivacyDesc: 'আপনার আপলোড করা স্ক্রিনশট বা চ্যাট আমাদের অ্যাপ সার্ভারে স্থায়ীভাবে জমা রাখা হয় না। টেক্সট এক্সট্রাকশনের জন্য প্রয়োজন অনুযায়ী কনফিগার করা এআই প্রোভাইডারে পাঠানো হয়।',
 
     // Footer
+    footerDeveloperApi: 'ডেভেলপার এপিআই',
+    footerHackathonInfo: 'হ্যাকাতন তথ্য',
     footerTagline: 'বাংলাদেশের ই-কমার্স ও এফ-কমার্স ভোক্তাদের সুরক্ষায় নিবেদিত।',
     footerCopyright: '© ২০২৬ ShopShield BD — সর্বস্বত্ব সংরক্ষিত।',
+
+    // Seller History & Web Archive
+    sellerHistoryTitle: 'বিক্রেতার ইতিহাস ও আর্কাইভ যাচাই',
+    sellerHistoryDesc: 'অনলাইন শপের ওয়েবসাইট আর্কাইভ এবং ফেসবুক পেজ ট্রান্সপারেন্সির নির্ভরযোগ্য রেকর্ড অনুসন্ধান করুন।',
+    sellerSubModeProfile: 'বিক্রেতার প্রোফাইল ও ওয়েব রেকর্ড',
+    sellerSubModeComparison: 'পূর্ববর্তী পলিসি ও মূল্যের পরিবর্তন',
+    sellerSampleLinks: 'নমুনা লিঙ্ক:',
+    sellerWebsiteUrlLabel: 'অনলাইন শপ ওয়েবসাইট লিঙ্ক',
+    sellerWebsiteUrlPlaceholder: 'https://daraz.com.bd অথবা chaldal.com',
+    sellerFbTransparencyTitle: 'ফেসবুক পেজ ট্রান্সপারেন্সি স্ক্রিনশট যোগ করুন (ঐচ্ছিক)',
+    sellerFbTransparencyHelp: "ফেসবুক পেজের 'Page Transparency' বা 'About' সেকশনের স্ক্রিনশট আপলোড করলে পেজ তৈরির তারিখ ও পূর্বের নাম পরিবর্তন পরীক্ষা করা হবে।",
+    sellerSelectScreenshot: 'স্ক্রিনশট ফাইল নির্বাচন করুন',
+    sellerAnalyzeBtn: 'ওয়েবসাইট ইতিহাস অনুসন্ধান করুন',
+    sellerAnalyzingBtn: 'আর্কাইভ অনুসন্ধান হচ্ছে...',
+    sellerResetBtn: 'রিসেট করুন',
+    sellerSummaryTitle: 'সংক্ষেপে যা পাওয়া গেছে',
+    sellerEarliestSnapshot: 'প্রথম সংরক্ষিত স্ন্যাপশট',
+    sellerTotalSnapshots: 'মোট আর্কাইভ নমুনা',
+    sellerArchiveDisclaimer: 'ℹ️ প্রথম আর্কাইভ তারিখ ডোমেইন খোলার বা ব্যবসা প্রতিষ্ঠার প্রমাণ নয়। এটি কেবল ওয়েব আর্কাইভে প্রথম রেকর্ড হওয়ার প্রমাণ।',
+    sellerPublicArchiveLinks: 'যাচাইযোগ্য পাবলিক আর্কাইভ লিঙ্কসমূহ:',
+    sellerFbPageRecord: 'ফেসবুক পেজ রেকর্ড',
+    sellerPageName: 'পেজের নাম:',
+    sellerPageCreationDate: 'পেজ তৈরির তারিখ:',
+    sellerBuyerQuestionsTitle: 'বিক্রেতার বিশ্বাসযোগ্যতা যাচাইয়ে করণীয় প্রশ্ন',
+    sellerDetailedEvidence: 'বিস্তারিত প্রমাণ ও সোর্স মেটাডাটা',
   },
   en: {
     // Brand & Header
@@ -212,8 +241,8 @@ export const translations = {
     scenario1Desc: 'Ad promised Cash on Delivery, but chat demands 100% full advance.',
     scenario2Title: "Unverified 'Original' Watch Claim",
     scenario2Desc: 'Suspiciously discounted original claim with courier advance demand.',
-    scenario3Title: 'Archived Seller History',
-    scenario3Desc: 'Facebook page history, rename log, and website archive snapshots.',
+    scenario3Title: 'Scenario 3: Clear Advertised Terms',
+    scenario3Desc: 'Exclusive leather wallet with transparent Cash on Delivery and return conditions.',
 
     // Form Inputs & Actions
     adInputLabel: 'Advertisement Text (or extracted from screenshot):',
@@ -307,11 +336,11 @@ export const translations = {
     // How It Works Section
     howItWorksHeading: 'How ShopShield Works',
     howItWorksSubheading: '3 Simple Steps to Safer Shopping',
-    step1Title: '1. Input Text or Screenshot',
+    step1Title: 'Input Text or Screenshot',
     step1Desc: 'Paste advertisement text or upload screenshots from Facebook, WhatsApp, or Messenger.',
-    step2Title: '2. Evidence-Based Extraction',
+    step2Title: 'Evidence-Based Extraction',
     step2Desc: 'Google Gemini extracts price, Cash on Delivery, advance payment requirements, and return terms.',
-    step3Title: '3. Make Safe Decisions',
+    step3Title: 'Make Safe Decisions',
     step3Desc: 'Spot discrepancies, understand advance payment risks, and copy verification questions for the seller.',
 
     // About Section
@@ -324,10 +353,39 @@ export const translations = {
     aboutPill1: 'Open-Source & Independent',
     aboutPill2: 'Evidence-Based Verification',
     aboutPill3: 'Privacy-Preserving',
+    aboutOpenSourceDesc: 'An open-source technology initiative designed to help online and social-commerce buyers in Bangladesh understand financial risks and consumer protections.',
+    aboutPrivacyDesc: 'Uploaded screenshots and chat content are processed without permanent storage on our application server. Image content is sent to the configured AI provider for extraction when necessary.',
 
     // Footer
+    footerDeveloperApi: 'Developer API',
+    footerHackathonInfo: 'Hackathon Information',
     footerTagline: 'Empowering consumers across Bangladesh with transparent, evidence-based e-commerce verification.',
     footerCopyright: '© 2026 ShopShield BD — All rights reserved.',
+
+    // Seller History & Web Archive
+    sellerHistoryTitle: 'Seller History & Archive Verification',
+    sellerHistoryDesc: 'Research verified online shop website archives and Facebook Page Transparency records.',
+    sellerSubModeProfile: 'Seller Profile & Web Archive',
+    sellerSubModeComparison: 'Historical Policy & Price Changes',
+    sellerSampleLinks: 'Sample Links:',
+    sellerWebsiteUrlLabel: 'Online Shop Website URL',
+    sellerWebsiteUrlPlaceholder: 'https://daraz.com.bd or chaldal.com',
+    sellerFbTransparencyTitle: 'Add Facebook Page Transparency Screenshot (Optional)',
+    sellerFbTransparencyHelp: "Uploading a screenshot of the Facebook 'Page Transparency' or 'About' section verifies page creation date and past name changes.",
+    sellerSelectScreenshot: 'Select screenshot file',
+    sellerAnalyzeBtn: 'Research Website History',
+    sellerAnalyzingBtn: 'Searching Archive...',
+    sellerResetBtn: 'Reset',
+    sellerSummaryTitle: 'Summary of Findings',
+    sellerEarliestSnapshot: 'Earliest Archived Snapshot',
+    sellerTotalSnapshots: 'Total Archived Snapshots',
+    sellerArchiveDisclaimer: 'ℹ️ The earliest archive date does not prove the domain launch or business founding date. It only proves when it was first recorded in web archives.',
+    sellerPublicArchiveLinks: 'Verifiable Public Archive Links:',
+    sellerFbPageRecord: 'Facebook Page Records',
+    sellerPageName: 'Page Name:',
+    sellerPageCreationDate: 'Page Creation Date:',
+    sellerBuyerQuestionsTitle: 'Questions to Verify Seller Credibility',
+    sellerDetailedEvidence: 'Detailed Evidence & Source Metadata',
   },
 } as const;
 
