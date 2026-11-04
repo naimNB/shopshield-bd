@@ -70,8 +70,8 @@ export const BuyerVerificationHub: React.FC = () => {
   };
 
   return (
-    <section id="analyzer" className="py-12 sm:py-16 bg-[#0a1020] border-t border-[#1e2a42] scroll-mt-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+    <section id="analyzer" className="py-10 sm:py-12 bg-[#0a1020] border-t border-[#253047]/75 scroll-mt-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-7">
         {/* Simple Question Header */}
         <div className="text-center max-w-2xl mx-auto space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-sans tracking-tight">
@@ -82,11 +82,11 @@ export const BuyerVerificationHub: React.FC = () => {
           </p>
         </div>
 
-        {/* 3-Choice Segmented Tabs (Unified max-w-5xl ~1000px desktop comfortable width) */}
+        {/* 3-Choice Segmented Tabs */}
         <div
           role="tablist"
           aria-label="Verification tabs"
-          className="flex flex-col sm:flex-row items-center justify-center gap-2 p-1.5 rounded-2xl bg-[#0f1728] border border-[#232f48] max-w-5xl mx-auto w-full shadow-md"
+          className="flex flex-col sm:flex-row items-center justify-center gap-2 p-1.5 rounded-2xl bg-[#121b2e] border border-[#2a3650] max-w-4xl mx-auto w-full"
         >
           {choices.map((choice, idx) => {
             const isActive = activeTab === choice.id;

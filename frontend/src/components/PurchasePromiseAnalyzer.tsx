@@ -155,9 +155,9 @@ export const PurchasePromiseAnalyzer: React.FC = () => {
       : results?.buyer_questions_bangla || [];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-7">
+    <div className="max-w-4xl mx-auto space-y-6 sm:space-y-7">
       {/* Input Section */}
-      <div className="bg-[#0f1728] border border-[#232f48] rounded-2xl p-6 sm:p-8 space-y-5 shadow-xs">
+      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-7 space-y-5">
         <div>
           <h3 className="text-xl font-bold text-white font-sans">{t('tabAdVsChat')}</h3>
           <p className="text-xs sm:text-sm text-slate-300 mt-1 font-sans">

@@ -207,13 +207,13 @@ export const SellerHistoryIntelligence: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
+    <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
       {/* Sub-mode selector */}
-      <div className="flex items-center justify-center gap-2 p-1.5 rounded-2xl bg-[#0f1728] border border-[#232f48] max-w-lg mx-auto shadow-xs">
+      <div className="flex items-center justify-center gap-2 p-1 rounded-xl bg-slate-900/80 border border-slate-800 max-w-md mx-auto">
         <button
           type="button"
           onClick={() => setActiveSubMode('profile')}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
             activeSubMode === 'profile'
               ? 'bg-teal-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-white'
@@ -224,7 +224,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveSubMode('comparison')}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
             activeSubMode === 'comparison'
               ? 'bg-teal-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-white'
@@ -240,7 +240,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
       ) : (
         <div className="space-y-6">
           {/* Main Website Form Card */}
-          <div className="bg-[#0f1728] border border-[#232f48] rounded-2xl p-6 sm:p-8 space-y-5 shadow-xs">
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 sm:p-7 space-y-5">
             <div>
               <h3 className="text-xl font-bold text-white font-sans">
                 বিক্রেতার ইতিহাস ও আর্কাইভ যাচাই
