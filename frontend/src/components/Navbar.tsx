@@ -71,7 +71,7 @@ export const Navbar: React.FC = () => {
                 <span className="font-bold text-base sm:text-lg tracking-tight text-white font-sans">
                   ShopShield
                 </span>
-                <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-teal-500/10 text-teal-300 border border-teal-500/30">
+                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/30">
                   BD
                 </span>
               </div>
@@ -82,7 +82,7 @@ export const Navbar: React.FC = () => {
           {/* Desktop Nav Links */}
           <nav
             aria-label="Navigation Menu"
-            className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300"
+            className="hidden lg:flex items-center space-x-8 text-sm font-medium text-slate-300"
           >
             <a
               href="#analyzer"
@@ -105,7 +105,7 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* Action & Status & Language Switch */}
-          <div className="hidden sm:flex items-center space-x-3">
+          <div className="hidden lg:flex items-center space-x-3">
             {/* Language Switcher Segment Toggle */}
             <div
               className="flex items-center bg-slate-900/90 border border-slate-700/80 rounded-xl p-0.5 text-xs font-medium shadow-inner"
@@ -148,7 +148,7 @@ export const Navbar: React.FC = () => {
                   ? t('serverConnecting')
                   : t('serverOffline')
               }`}
-              className="flex items-center space-x-1.5 text-xs text-slate-400"
+              className="hidden lg:inline-flex items-center space-x-1.5 text-xs text-slate-400"
             >
               <span
                 className={`w-2 h-2 rounded-full ${
@@ -191,7 +191,7 @@ export const Navbar: React.FC = () => {
           </div>
 
           {/* Mobile menu button and language switch */}
-          <div className="md:hidden flex items-center space-x-2">
+          <div className="lg:hidden flex items-center space-x-2">
             <div
               className="flex items-center bg-slate-900 border border-slate-700/80 rounded-lg p-0.5 text-xs font-medium"
               role="group"
@@ -235,7 +235,7 @@ export const Navbar: React.FC = () => {
       {isMenuOpen && (
         <div
           id="mobile-nav"
-          className="md:hidden border-b border-slate-800 bg-[#070c18] px-4 pt-3 pb-5 space-y-3 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150"
+          className="lg:hidden border-b border-slate-800 bg-[#070c18] px-4 pt-3 pb-5 space-y-3 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150"
         >
           <a
             href="#analyzer"

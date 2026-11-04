@@ -44,7 +44,7 @@ export const HowItWorks: React.FC = () => {
             return (
               <div
                 key={step.num}
-                className="rounded-2xl bg-[#111b2e] border border-[#29364f] p-5 sm:p-6 space-y-4 text-center sm:text-left flex flex-col justify-between"
+                className="rounded-2xl bg-[#111b2e] border border-[#29364f] p-5 sm:p-6 space-y-4 text-center sm:text-left flex flex-col justify-between h-full"
               >
                 <div className="space-y-3">
                   <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center mx-auto sm:mx-0 font-bold font-mono text-sm">

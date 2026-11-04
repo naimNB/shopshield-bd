@@ -75,10 +75,10 @@ export const BuyerVerificationHub: React.FC = () => {
         {/* Simple Question Header */}
         <div className="text-center max-w-2xl mx-auto space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-sans tracking-tight">
-            {t('navVerify')} — {t('tabAdCheck')} / {t('tabAdVsChat')}
+            {t('navVerify')} — {activeTab === 'ad-check' ? t('tabAdCheck') : activeTab === 'ad-vs-chat' ? t('tabAdVsChat') : t('tabPageTransparency')}
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 font-sans">
-            {t('tabAdCheckDesc')}
+            {activeTab === 'ad-check' ? t('tabAdCheckDesc') : activeTab === 'ad-vs-chat' ? t('tabAdVsChatDesc') : t('tabPageTransparencyDesc')}
           </p>
         </div>
 

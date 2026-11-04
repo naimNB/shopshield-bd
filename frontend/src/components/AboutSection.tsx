@@ -41,7 +41,7 @@ export const AboutSection: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="rounded-2xl bg-[#111b2e] border border-[#29364f] p-5 sm:p-6 space-y-3"
+                className="rounded-2xl bg-[#111b2e] border border-[#29364f] p-5 sm:p-6 space-y-3 h-full flex flex-col"
               >
                 <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center">
                   <Icon className="w-5 h-5" aria-hidden="true" />

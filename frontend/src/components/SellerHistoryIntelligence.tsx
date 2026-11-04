@@ -375,7 +375,7 @@ export const SellerHistoryIntelligence: React.FC = () => {
                     <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                     <span>রিসেট করুন</span>
                   </button>
-                ) : <span />}
+                ) : <div />}
 
                 <button
                   type="submit"
