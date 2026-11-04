@@ -31,7 +31,7 @@ export const Footer: React.FC = () => {
               {t('footerTagline')}
             </p>
             <p className="text-xs text-slate-400 font-mono">
-              Developed by <strong className="text-slate-200">naimNB</strong> for YUNet AIgnite Buildathon 2026.
+              Developed by <strong className="text-slate-200">Md. Naim</strong> for YUNet AIgnite Buildathon 2026.
             </p>
           </div>
 
