@@ -124,14 +124,16 @@ async function run() {
     const enBtn = desktopPage.locator('button:has-text("English")').first();
     await enBtn.click();
     await wait(300);
-    const enText = await desktopPage.locator('text=Official Devpost Event').isVisible();
-    console.log(`  English badge text visible: ${enText}`);
+    const enLang = await desktopPage.locator('html').getAttribute('lang');
+    if (enLang !== 'en' || !(await stickerImg.isVisible())) throw new Error('English toggle or sticker visibility failed');
+    console.log('  English UI and sticker remain available');
 
     const bnBtn = desktopPage.locator('button:has-text("বাংলা")').first();
     await bnBtn.click();
     await wait(300);
-    const bnText = await desktopPage.locator('text=অফিশিয়াল ইভেন্ট').isVisible();
-    console.log(`  Bangla badge text visible: ${bnText}`);
+    const bnLang = await desktopPage.locator('html').getAttribute('lang');
+    if (bnLang !== 'bn' || !(await stickerImg.isVisible())) throw new Error('Bangla toggle or sticker visibility failed');
+    console.log('  Bangla UI and sticker remain available');
 
     console.log('\n🎉 ALL BUILDATHON STICKER TESTS PASSED SUCCESSFULLY!');
   } catch (err) {
